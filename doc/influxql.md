@@ -133,17 +133,20 @@ The existing [WHERE clause](https://docs.influxdata.com/influxdb/v1.7/query_lang
 
 The existing [SHOW statements](https://docs.influxdata.com/influxdb/v1.7/query_language/schema_exploration/){.external} of InfluxQL supported by the Metrics platform are:
 
-| Statement        | Supported                    |
-| ---------------- | ---------------------------- |
-| SHOW DATABASES          | yes |
-| SHOW MEASUREMENTS       | yes |
-| SHOW FIELD KEYS         | yes |
-| SHOW RETENTION POLICIES | yes |
-| SHOW TAG KEYS           | yes |
-| SHOW SERIES             | yes |
-| SHOW TAG VALUES         | yes |
+| Statement                   | Supported                    |
+| --------------------------- | ---------------------------- |
+| SHOW DATABASES              | yes |
+| SHOW MEASUREMENTS           | yes |
+| SHOW FIELD KEYS             | yes |
+| SHOW RETENTION POLICIES     | yes |
+| SHOW TAG KEYS               | yes |
+| SHOW SERIES                 | yes |
+| SHOW TAG VALUES             | yes |
+| SHOW TAG VALUES CARDINALITY | yes |
 
 As the concept of databases doesn't exists in Metrics, the `SHOW DATABASES` statement will always return only one database: `metrics`.
+
+For the `SHOW TAG VALUES CARDINALITY` statement: no measurement split are computed and only the global tag cardinality is shown (compare to the same statement on InfluxDB). To get split tag cardinality statement, refers all wanted measurement in FROM clause.
 
 ## Database management statements
 
