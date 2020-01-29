@@ -162,13 +162,13 @@ func (p *InfluxParser) getSelectStatementScript(statement *influxql.SelectStatem
 	}
 
 	for _, field := range statement.Fields {
+		separator := "\\."
+		if p.Separator != "." {
+			separator = p.Separator
+		}
 
 		if strings.Contains(field.String(), "*") {
 			if !p.StarQuery {
-				separator := "\\."
-				if p.Separator != "." {
-					separator = p.Separator
-				}
 				findClass += classname + ")" + separator + "(.*)|"
 				p.StarQuery = true
 			}
@@ -176,11 +176,12 @@ func (p *InfluxParser) getSelectStatementScript(statement *influxql.SelectStatem
 		}
 		varRefNames := influxql.ExprNames(field.Expr)
 		for _, ref := range varRefNames {
-			separator := "\\."
-			if p.Separator != "." {
-				separator = p.Separator
-			}
 			findClass += classname + ")" + separator + "(" + ref.Val + ")|"
+		}
+
+		// Handle case of misformed varref returned by influx library
+		if len(varRefNames) == 0 {
+			findClass += classname + ")" + separator + "(.*)|"
 		}
 	}
 	findClass += ""
@@ -316,7 +317,7 @@ func (p *InfluxParser) getSelectStatementScript(statement *influxql.SelectStatem
 			}
 		}
 
-		if !starQuery && (!hasASeries && len(where) > 0) {
+		if !starQuery && (!hasASeries && len(where) > 0) && len(varRefNames) > 0 {
 			continue
 		}
 
