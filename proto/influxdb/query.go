@@ -81,6 +81,8 @@ const (
 	ShowSeries ShowType = 3
 	// ShowTagValues type.
 	ShowTagValues ShowType = 4
+	// ShowTagValuesCardinality type.
+	ShowTagValuesCardinality ShowType = 5
 )
 
 // Query is handling Query
@@ -237,6 +239,15 @@ func handleQuery(q *influxql.Query, epoch string, db string, txn string, token s
 				return nil, err
 			}
 			influx.Results = append(influx.Results, *result)
+		case *influxql.ShowTagValuesCardinalityStatement:
+			separator, _ := parseSeparatorCondition(stmt.Condition)
+			showStatement := &InfluxShowStatement{QueryType: ShowTagValuesCardinality, Name: "none", Columns: []string{"count"}, TagKeyExpr: stmt.TagKeyExpr, Separator: separator}
+
+			result, err := showStatement.parseInfluxSeries(i, txn, token, stmt.Limit, stmt.Offset, stmt.Sources, stmt.Condition)
+			if err != nil {
+				return nil, err
+			}
+			influx.Results = append(influx.Results, *result)
 		default:
 			log.Warnf("handleQuery - Default %s %T", stmt.String(), stmt)
 			return nil, fmt.Errorf("Statement not implemented yet: %T", stmt)
@@ -360,7 +371,7 @@ func (showStatement *InfluxShowStatement) parseInfluxSeries(statementid int, txn
 		mc2 += getShowFieldKeysWarpScript(token, findSelector, labelsFilter, offset, limit, showStatement.Separator)
 	case ShowTagKeys:
 		mc2 += getShowTagKeysWarpScript(token, findSelector, labelsFilter, offset, limit, showStatement.Separator)
-	case ShowTagValues:
+	case ShowTagValues, ShowTagValuesCardinality:
 		switch showStatement.TagKeyExpr.(type) {
 		case *influxql.RegexLiteral:
 			regExp := showStatement.TagKeyExpr.String()
@@ -381,7 +392,11 @@ func (showStatement *InfluxShowStatement) parseInfluxSeries(statementid int, txn
 			mc2 += fmt.Sprintf("[ '%s' ] 'labelsKeys' STORE\n", strings.Join(listItems, "' '"))
 			mc2 += "[] 'regExp' STORE\n"
 		}
-		mc2 += getShowTagValuesWarpScript(token, findSelector, labelsFilter, offset, limit, showStatement.Separator)
+		if showStatement.QueryType == ShowTagValues {
+			mc2 += getShowTagValuesWarpScript(token, findSelector, labelsFilter, offset, limit, showStatement.Separator)
+		} else {
+			mc2 += getShowTagValuesCardinalityWarpScript(token, classnames, labelsFilter, offset, limit, showStatement.Separator)
+		}
 	default:
 		return nil, fmt.Errorf("unvalid type")
 	}
@@ -477,9 +492,14 @@ func (showStatement *InfluxShowStatement) parseInfluxSeries(statementid int, txn
 
 			findAnswer.Values[index] = make([]interface{}, 0)
 			for _, rawSeries := range seriesSet {
-				seriesShow := strings.Replace(rawSeries.Class, "{", ",", 1)
-				seriesShow = strings.TrimSuffix(seriesShow, "}")
-				findAnswer.Values[index] = append(findAnswer.Values[index], seriesShow)
+				// Case of non series selector but a value, returns the value: useful for Find cardinality queries
+				if rawSeries.Class == "" && len(rawSeries.Values) > 0 {
+					findAnswer.Values[index] = append(findAnswer.Values[index], rawSeries.Values[0][1])
+				} else {
+					seriesShow := strings.Replace(rawSeries.Class, "{", ",", 1)
+					seriesShow = strings.TrimSuffix(seriesShow, "}")
+					findAnswer.Values[index] = append(findAnswer.Values[index], seriesShow)
+				}
 			}
 		}
 		series = append(series, findAnswer)
@@ -636,6 +656,61 @@ func getShowTagKeysWarpScript(token, findString, labelsFilter string, offset, li
                 FOREACH 
 		` + fmt.Sprintf("[ %d %d ] SUBLIST", offset, limit)
 
+	return mc2
+}
+
+func getShowTagValuesCardinalityWarpScript(token string, selectors []string, labelsFilter string, offset, limit int, separator string) string {
+	// TODO: controle FIND Limits here
+	mc2 := "[\n"
+	for _, selector := range selectors {
+		mc2 += fmt.Sprintf("'%s' 'selector' STORE\n", selector)
+		mc2 += fmt.Sprintf("[ '%s' '~%s.*' %s ", token, selector, labelsFilter) +
+			` ] FINDSTATS 
+		'per.label.value.estimate' GET
+		<% 
+			$regExp SIZE 0 >
+		%>
+		<% 
+			{} 'regExpLabels' STORE
+			<%
+					'valueRegExp' STORE
+				DUP 'keyRegExp' STORE
+				$regExp 0 GET
+				MATCH
+				<%
+					SIZE 0 >
+				%>
+				<%
+					$regExpLabels
+					$valueRegExp
+					$keyRegExp
+					PUT
+					'regExpLabels' STORE
+				%>
+				IFT
+			%>
+			FOREACH
+			$regExpLabels
+		%>
+		<%
+			$labelsKeys SUBMAP
+		%>
+		IFTE
+		[]
+		SWAP
+		<% 
+			SWAP DROP
+			'value' STORE
+			NEWGTS { '.name' $selector } RELABEL NOW NaN NaN NaN $value ADDVALUE 
+			+
+		%>
+		FOREACH
+		[ SWAP bucketizer.last NOW 0 1 ] BUCKETIZE
+		[ SWAP [ '.name' ] reducer.sum ] REDUCE 
+		NONEMPTY
+		`
+	}
+	mc2 += "]"
 	return mc2
 }
 
