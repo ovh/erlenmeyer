@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
+	"math"
 	"net/http"
 	"net/http/httputil"
 	"sort"
@@ -251,7 +252,7 @@ func (showStatement *InfluxShowStatement) parseInfluxSeries(statementid int, txn
 
 	limit := paramLimit
 	if paramLimit <= 0 {
-		limit = 10
+		limit = math.MaxInt64
 	}
 
 	classnames := make([]string, 0)
