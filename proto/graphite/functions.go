@@ -37,7 +37,7 @@ var (
 		"aggregateWithWildcards":      aggregateWithWildcards,      // aggregate.go - http://graphite.readthedocs.io/en/latest/functions.html#render.functions.aggregateWithWildcards
 		"alias":                       alias,                       // name.go - http://graphite.readthedocs.io/en/latest/functions.html#render.functions.alias
 		"aliasByMetric":               aliasByMetric,               // name.go - http://graphite.readthedocs.io/en/latest/functions.html#render.functions.aliasByMetric
-		"aliasByNode":                 aliasByNode,                 // name.go - http://graphite.readthedocs.io/en/latest/functions.html#render.functions.aliasByNode
+		"aliasByNode":                 aliasByTags,                 // name.go - http://graphite.readthedocs.io/en/latest/functions.html#render.functions.aliasByNode
 		"aliasByTags":                 aliasByTags,                 // name.go - http://graphite.readthedocs.io/en/latest/functions.html#render.functions.aliasByTags
 		"aliasQuery":                  noOp,                        // http://graphite.readthedocs.io/en/latest/functions.html#render.functions.aliasQuery
 		"aliasSub":                    aliasSub,                    // name.go - http://graphite.readthedocs.io/en/latest/functions.html#render.functions.aliasSub

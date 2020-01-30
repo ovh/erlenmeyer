@@ -7,16 +7,6 @@ import (
 )
 
 const (
-	mapperLabelToSeriesIndex = `
-	%d 'index' STORE 
-
-<%% 
-		DROP
-		DUP NAME '.' SPLIT [ 0 $index ] SUBLIST 
-		%s
-		LIST-> '.' SWAP JOIN RENAME
-		%%> LMAP`
-
 	mapperLabelToSeries = `
 <%% 
 		DROP

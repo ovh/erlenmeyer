@@ -82,34 +82,6 @@ func aliasSub(node *core.Node, args []string, kwargs map[string]string) (*core.N
 	return node.Left, nil
 }
 
-func aliasByNode(node *core.Node, args []string, kwargs map[string]string) (*core.Node, error) {
-	if len(args) < 2 {
-		return nil, errors.New("The aliasByNode function take at least two parameters which are a list of series and parameters to rewrite metric")
-	}
-
-	last := len(args) - 1
-	index, err := strconv.Atoi(args[last])
-	if err != nil {
-		index = 0
-		last = len(args)
-	}
-
-	labels := make([]string, 0)
-	for _, label := range args[1:last] {
-		labels = append(labels, fmt.Sprintf(labelToSerie, label))
-	}
-
-	node.Left = core.NewNode(core.WarpScriptPayload{
-		WarpScript: fmt.Sprintf(mapperLabelToSeriesIndex, index, strings.Join(labels, "\n")),
-	})
-
-	if args[0] != swap {
-		return fetch(node.Left, []string{args[0], kwargs["from"], kwargs["until"]}, kwargs)
-	}
-
-	return node.Left, nil
-}
-
 func aliasByTags(node *core.Node, args []string, kwargs map[string]string) (*core.Node, error) {
 	if len(args) < 2 {
 		return nil, errors.New("The aliasByTags function take at least two parameters which are a list of series and parameters to rewrite metric")
