@@ -337,7 +337,7 @@ var functionsTest = []functionTest{
 			Parameters: make(map[string]string),
 		},
 		ShouldContains: []string{
-			"[ $token '~os\\.cpu' {}   ISO8601  ISO8601 ] FETCH",
+			"[ $token '~os\\.cpu' {}   ISO8601  ISO8601 ] FETCHDOUBLE",
 		},
 	},
 	{
@@ -347,7 +347,7 @@ var functionsTest = []functionTest{
 			Parameters: make(map[string]string),
 		},
 		ShouldContains: []string{
-			"[ $token '~os\\.cpu' { 'host'  'dn1' }   ISO8601  ISO8601 ] FETCH",
+			"[ $token '~os\\.cpu' { 'host'  'dn1' }   ISO8601  ISO8601 ] FETCHDOUBLE",
 		},
 	},
 	{
@@ -357,7 +357,7 @@ var functionsTest = []functionTest{
 			Parameters: make(map[string]string),
 		},
 		ShouldContains: []string{
-			"[ $token '~(?!os\\.cpu)' {}   ISO8601  ISO8601 ] FETCH",
+			"[ $token '~(?!os\\.cpu)' {}   ISO8601  ISO8601 ] FETCHDOUBLE",
 		},
 	},
 	{
@@ -367,7 +367,7 @@ var functionsTest = []functionTest{
 			Parameters: make(map[string]string),
 		},
 		ShouldContains: []string{
-			"[ $token '~(?!os\\.cpu)' {}   ISO8601  ISO8601 ] FETCH",
+			"[ $token '~(?!os\\.cpu)' {}   ISO8601  ISO8601 ] FETCHDOUBLE",
 		},
 	},
 	{
@@ -377,7 +377,7 @@ var functionsTest = []functionTest{
 			Parameters: make(map[string]string),
 		},
 		ShouldContains: []string{
-			"[ $token '~os\\.cpu' {}   ISO8601  ISO8601 ] FETCH",
+			"[ $token '~os\\.cpu' {}   ISO8601  ISO8601 ] FETCHDOUBLE",
 		},
 	},
 }

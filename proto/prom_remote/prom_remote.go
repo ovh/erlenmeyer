@@ -23,7 +23,7 @@ var (
 	log *logrus.Entry
 	tpl *template.Template
 	ws  = `
-[ {{.token}} {{.selector}} {{.labels}} {{.start}} ISO8601 {{.end}} ISO8601 ] FETCH
+[ {{.token}} {{.selector}} {{.labels}} {{.start}} ISO8601 {{.end}} ISO8601 ] FETCHDOUBLE
 {{.operation}}
 [ SWAP mapper.finite 0 0 0 ] MAP
 { '.app' NULL } RELABEL
