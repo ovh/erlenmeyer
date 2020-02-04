@@ -297,18 +297,6 @@ var functionsTest = []functionTest{
 	},
 	{
 		Function: graphite.Function{
-			Name:       "aliasByNode",
-			Arguments:  []string{swap, "host", "1"},
-			Parameters: make(map[string]string),
-		},
-		ShouldContains: []string{
-			"DUP NAME '.' SPLIT [ 0 $index ] SUBLIST",
-			"SWAP DUP LABELS 'host' GET ROT SWAP +",
-			"LIST-> '.' SWAP JOIN RENAME",
-		},
-	},
-	{
-		Function: graphite.Function{
 			Name:       "aliasByTags",
 			Arguments:  []string{swap, "host"},
 			Parameters: make(map[string]string),
