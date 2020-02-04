@@ -8,6 +8,7 @@ import (
 	"io/ioutil"
 	"net/http"
 	"net/http/httputil"
+	"net/url"
 	"regexp"
 	"strconv"
 	"strings"
@@ -460,13 +461,29 @@ func (server *HTTPWarp10Server) FindGTS(token string, selector string) (*QueryRe
 				keyValArray = strings.Split(keyValStr, "=") // => ["key", "val"]
 
 				if len(keyValArray) > 1 {
-					labels[keyValArray[0]] = keyValArray[1]
+					// Handle find URL encode results
+					labelsKey, err := url.PathUnescape(keyValArray[0])
+					if err != nil {
+						labelsKey = keyValArray[0]
+					}
+
+					labelsValue, err := url.PathUnescape(keyValArray[1])
+					if err != nil {
+						labelsValue = keyValArray[1]
+					}
+					labels[labelsKey] = labelsValue
 				}
 			}
 		}
 
+		// Handle find URL encode results
+		className, err := url.PathUnescape(parseOne[0])
+		if err != nil {
+			className = parseOne[0]
+		}
+
 		result.GTS = append(result.GTS, GeoTimeSeries{
-			Class:  parseOne[0],
+			Class:  className,
 			Attrs:  make(map[string]string),
 			Labels: labels,
 		})
