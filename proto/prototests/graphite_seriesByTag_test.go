@@ -50,7 +50,7 @@ var graphiteGraphiteSeriesByTag = []unitTests{
     202000000.000000 NaN NaN NaN 100.000000 ADDVALUE
     
 ]
-%> 'FETCH' DEF
+%> 'FETCHDOUBLE' DEF
 	`,
 				GTSResult: []FloatGeoTimeSeries{
 					{

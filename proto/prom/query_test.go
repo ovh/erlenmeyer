@@ -71,7 +71,7 @@ var tests = []testStruct{
 	{
 		Query: `container.rate`,
 		ShouldContains: []string{
-			"[ $token 'container.rate' {}  1435781430781000 0 -  ISO8601 1435785630123000 0 -  ISO8601 ] FETCH",
+			"[ $token 'container.rate' {}  1435781430781000 0 -  ISO8601 1435785630123000 0 -  ISO8601 ] FETCHDOUBLE",
 		},
 	},
 	{
@@ -94,12 +94,12 @@ var tests = []testStruct{
 		ShouldContains: []string{
 			"'handler'  '/comments'",
 			"'job'  'apiserver'",
-			"1435781430781000 0 -  ISO8601 1435785630123000 0 -  ISO8601 ] FETCH"},
+			"1435781430781000 0 -  ISO8601 1435785630123000 0 -  ISO8601 ] FETCHDOUBLE"},
 	},
 	{
 		Query: `http_requests_total[5m] offset 1w`,
 		ShouldContains: []string{
-			"[ $token 'http_requests_total' {}  1435781430781000 604800000000 -  ISO8601 1435785630123000 604800000000 -  ISO8601 ] FETCH",
+			"[ $token 'http_requests_total' {}  1435781430781000 604800000000 -  ISO8601 1435785630123000 604800000000 -  ISO8601 ] FETCHDOUBLE",
 			"300000000 'range' STORE [ SWAP bucketizer.last 1435785630123000 604800000000 -  5 s  1435785630123000 1435781430781000 - 5 s / TOLONG ] BUCKETIZE",
 			"FILLPREVIOUS",
 		},
@@ -143,7 +143,7 @@ var tests = []testStruct{
 	{
 		Query: `http_request + http_bytes`,
 		ShouldContains: []string{
-			"[ $token 'http_request' {}  1435781430781000 0 -  ISO8601 1435785630123000 0 -  ISO8601 ] FETCH",
+			"[ $token 'http_request' {}  1435781430781000 0 -  ISO8601 1435785630123000 0 -  ISO8601 ] FETCHDOUBLE",
 			"$left $right 2 ->LIST",
 			"<% DUP LABELS ->JSON 'UTF-8' ->BYTES SHA1 ->HEX  'hash_945fa9bc3027d7025e3' SWAP 2 ->MAP RELABEL 1 ->LIST $l SWAP APPEND 'l' STORE %> FOREACH",
 			"[ SWAP  DUP 0 GET @HASHLABELS SWAP 1 GET @HASHLABELS [ 'hash_945fa9bc3027d7025e3' ] op.add ]  APPLY NONEMPTY { 'hash_945fa9bc3027d7025e3' '' } RELABEL"},
@@ -167,7 +167,7 @@ var tests = []testStruct{
 	{
 		Query: `http_request - http_bytes`,
 		ShouldContains: []string{
-			"[ $token 'http_request' {}  1435781430781000 0 -  ISO8601 1435785630123000 0 -  ISO8601 ] FETCH",
+			"[ $token 'http_request' {}  1435781430781000 0 -  ISO8601 1435785630123000 0 -  ISO8601 ] FETCHDOUBLE",
 			"$left $right 2 ->LIST",
 			"[ SWAP  DUP 0 GET @HASHLABELS '%2B.tosub' RENAME SWAP 1 GET @HASHLABELS [ 'hash_945fa9bc3027d7025e3' ] op.sub ]  APPLY NONEMPTY { 'hash_945fa9bc3027d7025e3' '' } RELABEL"},
 	},
