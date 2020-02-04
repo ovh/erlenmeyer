@@ -411,17 +411,17 @@ func getBitwiseApply(operator string) string {
 // Generate WarpScript Fetch
 func (p *InfluxParser) parseFetch(name string, fetchType influxql.DataType, selectors []string, where [][]*WhereCond) (string, ExprReturn, error) {
 
-	mapType := ""
+	fetchString := "FETCH"
 
 	switch fetchType {
 	case influxql.Float:
-		mapType = "[ SWAP mapper.todouble 0 0 0 ] MAP\n"
+		fetchString = "FETCHDOUBLE"
 	case influxql.Integer:
-		mapType = "[ SWAP mapper.tolong 0 0 0 ] MAP\n"
+		fetchString = "FETCHLONG"
 	case influxql.String:
-		mapType = "[ SWAP mapper.tostring 0 0 0 ] MAP\n"
+		fetchString = "FETCHSTRING"
 	case influxql.Boolean:
-		mapType = "[ SWAP mapper.toboolean 0 0 0 ] MAP\n"
+		fetchString = "FETCHBOOLEAN"
 	}
 	valueName := name
 	if name == "*" {
@@ -522,8 +522,7 @@ func (p *InfluxParser) parseFetch(name string, fetchType influxql.DataType, sele
 		}
 	}
 
-	mc2 += fmt.Sprintf("{ 'token' '%s' 'selectors' [ %s ] 'end' $end 'timespan' $interval } FETCH\n", p.Token, fetchSelector)
-	mc2 += mapType
+	mc2 += fmt.Sprintf("{ 'token' '%s' 'selectors' [ %s ] 'end' $end 'timespan' $interval } %s\n", p.Token, fetchSelector, fetchString)
 	mc2 += "<% DROP DUP NAME 'name' STORE { '.app' NULL '.InfluxDBName' $name '"
 	mc2 += p.Separator
 	mc2 += "' <% DUP '' == %> <% DROP 1 ->LIST %> <% SPLIT %> IFTE\n"
