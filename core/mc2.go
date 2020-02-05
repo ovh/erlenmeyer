@@ -134,7 +134,7 @@ func (n *Node) Write(b *bytes.Buffer) {
 			b.WriteString(" " + p.End + " ISO8601")
 		}
 
-		b.WriteString(" ] FETCHDOUBLE \n")
+		b.WriteString(" ] FETCH \n")
 		b.WriteString("DUP <% VALUES SIZE 0 == %> <% NEWGTS '" + p.ClassName + "' RENAME " + printLabelsAsWarpScriptHash(p.Labels) + " RELABEL 1 ->LIST APPEND %> IFT\n")
 
 		if len(p.Offset) > 0 {
