@@ -114,7 +114,7 @@ var (
     202000000.000000 NaN NaN NaN 100.000000 ADDVALUE
     
 ]
-%> 'FETCHDOUBLE' DEF
+%> 'FETCH' DEF
 	`
 
 	emptySample       = map[string]string{"\"CLEAR\"": "CLEAR"}
