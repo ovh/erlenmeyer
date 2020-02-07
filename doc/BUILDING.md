@@ -32,7 +32,7 @@ First init your project locally running:
 make init
 ```
 
-Then download the project dependancies
+Then download the project dependencies
 
 ```sh
 make dep
