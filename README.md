@@ -17,11 +17,11 @@ You can test and run locally erlenemeyer following those [building steps](./doc/
 
 ## Motivation
 
-At [OVHcloud](https://github.com/ovh), a lot of Metrics users were used and efficient with some protocols. The goals of Erlenmeyer was to unable them, to still use it on Metrics on top of Warp 10. This is how the parsing of several Open Source query Time Series DataBase was done. The power of WarpScript, the Time Series language on top of Warp 10, was a great help on this process. The best part of it, is now you can have: the same backend, the same data and some Grafana Dashboard written in PromQL when others are using OpenTSDB!
+At [OVHcloud](https://github.com/ovh), a lot of Metrics users were used to a previous TSDB experience with which they felt confortable and efficient. The goal of Erlenmeyer was to leverage their existing habits, while converging on the Metrics Time Series platform. Hence we decided to welcome customers adding more and more protocols from several Open Source Time Series DB. Under the hood, the Warp10 platform offers the powerful WarpScript query language which was a great help on this process, by just implementing all the query layers as a transpilation step. The best part of it, is now you can have: the same backend, the same data and some Grafana Dashboard written in PromQL when others are using OpenTSDB!
 
 ## Status
 
-Erlenmeyer is currently under development.
+Erlenmeyer is used in production.
 
 ## Contributing
 
