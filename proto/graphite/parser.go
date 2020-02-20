@@ -21,11 +21,11 @@ var (
 	rTransformedString     = regexp.MustCompile(`\$\$\d+`)
 	rNumber                = regexp.MustCompile(`\d+(\.\d+)?(e(\.\d+)?)?`)
 	rName                  = regexp.MustCompile(fmt.Sprintf(`(%[1]s)|(%[1]s)?(\[(%[2]s)\])+(%[1]s)?`, `[\w\-*]+`, `[\w\-]+`))
-	rNameWithCurlyBrackets = regexp.MustCompile(fmt.Sprintf(`(%[1]s)|(%[1]s)?\{(%[1]s)(, ?(%[1]s))\}(%[1]s)?`, rName))
-	rCurlyBrackets         = regexp.MustCompile(fmt.Sprintf(`(\{(%[1]s)(, ?(%[1]s))\})+`, rName))
+	rNameWithCurlyBrackets = regexp.MustCompile(fmt.Sprintf(`(%[1]s)|(%[1]s)?\{(%[1]s)(, ?(%[1]s))*\}(%[1]s)?`, rName))
+	rCurlyBrackets         = regexp.MustCompile(fmt.Sprintf(`(\{(%[1]s)(,?(%[1]s))*\})+`, rName))
 	rSerie                 = regexp.MustCompile(fmt.Sprintf(`((%[1]s)(\.(%[1]s))*)`, rNameWithCurlyBrackets))
 	rArgument              = regexp.MustCompile(fmt.Sprintf(`(%s)|(%s)|(%s)|(%s)`, rSerie, rTransformedString, rString, rNumber))
-	rFunction              = regexp.MustCompile(fmt.Sprintf(`\w+\(((%s)(\, ?(%s))*)?\)`, rArgument, rArgument))
+	rFunction              = regexp.MustCompile(fmt.Sprintf(`\w+\(((%s)(\,\s*?(%s))*)?\)`, rArgument, rArgument))
 )
 
 // Function structure using to describe a graphite function call
@@ -143,7 +143,7 @@ func ParseFunction(function string) Function {
 		name := rCurlyBrackets.FindString(function)
 		replace := strings.Replace(name, "{", "(", 1)
 		replace = strings.Replace(replace, "}", ")", 1)
-		replace = strings.Replace(replace, ",", "|", 1)
+		replace = strings.Replace(replace, ",", "|", -1)
 		function = strings.Replace(function, name, replace, 1)
 	}
 
