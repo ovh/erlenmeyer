@@ -320,9 +320,6 @@ func (o *OpenTSDB) HandleQueryLast(responseWriter http.ResponseWriter, request *
 	}
 
 	outStr := out.String()
-	log.WithFields(log.Fields{
-		"proto": "opentsdb",
-	}).Info(outStr)
 
 	warpServer := core.NewWarpServer(viper.GetString("warp_endpoint"), "opentsdb-query-last")
 	response, err := warpServer.Query(outStr, responseWriter.Header().Get(middlewares.TxnHeader))
