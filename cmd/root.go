@@ -66,6 +66,8 @@ func initConfig() {
 		}
 	}
 
+	viper.SetDefault("timeunit", "us")
+
 	// Load user defined config
 	cfgFile := viper.GetString("config")
 	if cfgFile != "" {
