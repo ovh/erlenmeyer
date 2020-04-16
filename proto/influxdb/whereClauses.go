@@ -7,6 +7,7 @@ import (
 
 	"github.com/influxdata/influxql"
 	log "github.com/sirupsen/logrus"
+	"github.com/spf13/viper"
 )
 
 //WhereCond Where statement data
@@ -19,7 +20,7 @@ type WhereCond struct {
 
 // getNanoSeconds get conversion in nanoseconds of the expected Warp10 platform
 func getNanoSeconds() int {
-	switch viper.getString("timeunit") {
+	switch viper.GetString("timeunit") {
 	case "ms":
 		return 1000000
 	case "us":
@@ -27,6 +28,9 @@ func getNanoSeconds() int {
 	case "ns":
 		return 1
 	}
+
+	// by default assume the platform is in microseconds
+	return 1000
 }
 
 // String: WhereCond to string
@@ -209,11 +213,11 @@ func getTimeInfluxValue(getExpr influxql.Expr) string {
 	case *influxql.Distinct:
 		log.Warnf("getInfluxValue - Distinct: %s", expr)
 	case *influxql.DurationLiteral:
-		return fmt.Sprintf("%d", expr.Val.Nanoseconds()/getNanoSeconds())
+		return fmt.Sprintf("%d", expr.Val.Nanoseconds()/int64(getNanoSeconds()))
 	case *influxql.IntegerLiteral:
-		return fmt.Sprintf("%d", expr.Val/getNanoSeconds())
+		return fmt.Sprintf("%d", expr.Val/int64(getNanoSeconds()))
 	case *influxql.UnsignedLiteral:
-		return fmt.Sprintf("%d", expr.Val/getNanoSeconds())
+		return fmt.Sprintf("%d", expr.Val/uint64(getNanoSeconds()))
 	case *influxql.NilLiteral:
 		return "NULL"
 	case *influxql.NumberLiteral:
