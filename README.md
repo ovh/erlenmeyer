@@ -53,7 +53,7 @@ Erlenmeyer exposes metrics about his usage:
 | erlenmeyer_promql_request          | function                | counter | Number of requests handled            |
 | erlenmeyer_promql_request          | function                | counter | Number of requests handled            |
 
-## Licence
+## Licence
 
 Erlenmeyer is released under a [3-BSD clause license](./LICENSE).
 
