@@ -17,6 +17,18 @@ type WhereCond struct {
 	isTag bool
 }
 
+// getNanoSeconds get conversion in nanoseconds of the expected Warp10 platform
+func getNanoSeconds() int {
+	switch viper.getString("timeunit") {
+	case "ms":
+		return 1000000
+	case "us":
+		return 1000
+	case "ns":
+		return 1
+	}
+}
+
 // String: WhereCond to string
 func (w *WhereCond) String() string {
 	return fmt.Sprintf("WhereCond{%s %s %s %t}", w.key, w.op.String(), w.value, w.isTag)
@@ -96,31 +108,31 @@ func parseTimeCondition(getExpr influxql.Expr) (string, string) {
 		if expr.LHS.String() == "time" {
 			switch expr.Op {
 			case influxql.EQ:
-				end = getInfluxValue(expr.RHS) + " 1 +"
+				end = getTimeInfluxValue(expr.RHS) + " 1 +"
 				start = "$end 10 -"
 			case influxql.LT:
-				end = getInfluxValue(expr.RHS)
+				end = getTimeInfluxValue(expr.RHS)
 			case influxql.LTE:
-				end = getInfluxValue(expr.RHS) + " 1 +"
+				end = getTimeInfluxValue(expr.RHS) + " 1 +"
 			case influxql.GT:
-				start = getInfluxValue(expr.RHS)
+				start = getTimeInfluxValue(expr.RHS)
 			case influxql.GTE:
-				start = getInfluxValue(expr.RHS) + " 1 +"
+				start = getTimeInfluxValue(expr.RHS) + " 1 +"
 			default:
 			}
 		} else if expr.RHS.String() == "time" {
 			switch expr.Op {
 			case influxql.EQ:
-				end = getInfluxValue(expr.LHS) + " 1 +"
+				end = getTimeInfluxValue(expr.LHS) + " 1 +"
 				start = "10"
 			case influxql.LT:
-				end = getInfluxValue(expr.LHS)
+				end = getTimeInfluxValue(expr.LHS)
 			case influxql.LTE:
-				end = getInfluxValue(expr.LHS) + " 1 +"
+				end = getTimeInfluxValue(expr.LHS) + " 1 +"
 			case influxql.GT:
-				start = getInfluxValue(expr.LHS)
+				start = getTimeInfluxValue(expr.LHS)
 			case influxql.GTE:
-				start = getInfluxValue(expr.LHS) + " 1 +"
+				start = getTimeInfluxValue(expr.LHS) + " 1 +"
 			default:
 			}
 		} else {
@@ -179,12 +191,12 @@ func getInfluxValSelector(getExpr influxql.Expr) string {
 }
 
 // Parse a specific Influx value used in Where clauses
-func getInfluxValue(getExpr influxql.Expr) string {
+func getTimeInfluxValue(getExpr influxql.Expr) string {
 	value := ""
 	// Return the function name or variable name, if available.
 	switch expr := getExpr.(type) {
 	case *influxql.BinaryExpr:
-		return getInfluxValue(expr.LHS) + " " + getInfluxValue(expr.RHS) + " " + expr.Op.String()
+		return getTimeInfluxValue(expr.LHS) + " " + getTimeInfluxValue(expr.RHS) + " " + expr.Op.String()
 	case *influxql.BooleanLiteral:
 		return fmt.Sprintf("%T", expr.Val)
 	case *influxql.BoundParameter:
@@ -197,15 +209,15 @@ func getInfluxValue(getExpr influxql.Expr) string {
 	case *influxql.Distinct:
 		log.Warnf("getInfluxValue - Distinct: %s", expr)
 	case *influxql.DurationLiteral:
-		return fmt.Sprintf("%d", expr.Val.Nanoseconds()/1000)
+		return fmt.Sprintf("%d", expr.Val.Nanoseconds()/getNanoSeconds())
 	case *influxql.IntegerLiteral:
-		return fmt.Sprintf("%d", expr.Val)
+		return fmt.Sprintf("%d", expr.Val/getNanoSeconds())
 	case *influxql.UnsignedLiteral:
-		return fmt.Sprintf("%d", expr.Val)
+		return fmt.Sprintf("%d", expr.Val/getNanoSeconds())
 	case *influxql.NilLiteral:
 		return "NULL"
 	case *influxql.NumberLiteral:
-		return fmt.Sprintf("%f", expr.Val)
+		return fmt.Sprintf("%f %d * ROUND", expr.Val, getNanoSeconds())
 	case *influxql.ParenExpr:
 		log.Warnf("getInfluxValue - ParenExpr: %s", expr)
 	case *influxql.RegexLiteral:
