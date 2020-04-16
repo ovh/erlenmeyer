@@ -824,6 +824,14 @@ func parseInfluxSelect(statement *influxql.SelectStatement, statementid int, txn
 		return nil, err
 	}
 
+	mc2 = "'" + token + "' " + `
+	AUTHENTICATE
+	// keys of STACKATTRIBUTE can be found here: https://github.com/cityzendata/warp10-platform/blob/master/warp10/src/main/java/io/warp10/script/WarpScriptStack.java
+	'stack.maxops.hard' STACKATTRIBUTE DUP <% ISNULL ! %> <% MAXOPS %> <% DROP %> IFTE
+	'fetch.limit.hard' STACKATTRIBUTE DUP <% ISNULL ! %> <% LIMIT %> <% DROP %> IFTE
+	'gts.limit.hard' STACKATTRIBUTE DUP <% ISNULL ! %> <% MAXGTS %> <% DROP %> IFTE
+	` + mc2
+
 	queryRes, err := warpServer.Query(mc2, txn)
 
 	if err != nil {
