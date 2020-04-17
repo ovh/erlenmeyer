@@ -36,6 +36,7 @@ func (n *Node) ToWarpScript(token string, query string, step string) string {
 	// keys of STACKATTRIBUTE can be found here: https://github.com/cityzendata/warp10-platform/blob/master/warp10/src/main/java/io/warp10/script/WarpScriptStack.java
 	b.WriteString("'stack.maxops.hard' STACKATTRIBUTE DUP <% ISNULL ! %> <% MAXOPS %> <% DROP %> IFTE\n")
 	b.WriteString("'fetch.limit.hard' STACKATTRIBUTE DUP <% ISNULL ! %> <% LIMIT %> <% DROP %> IFTE\n")
+	b.WriteString("'gts.limit.hard' STACKATTRIBUTE DUP <% ISNULL ! %> <% MAXGTS %> <% DROP %> IFTE\n")
 
 	// Generate node WarpScript
 	n.toWarpScript(&b)
