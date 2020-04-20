@@ -130,6 +130,14 @@ func (i *InfluxDB) Query(w http.ResponseWriter, r *http.Request) {
 	db := r.FormValue("db")
 	timePrecision := r.FormValue("precision")
 
+	if timePrecision == "" {
+		if epoch == "" {
+			timePrecision = "rfc3339"
+		} else {
+			timePrecision = epoch
+		}
+	}
+
 	// Parse query from query string.
 	q, err := p.ParseQuery()
 
@@ -1141,12 +1149,22 @@ func warpToInfluxResponse(seriesSet []core.GeoTimeSeries, statementid int, timeC
 
 // getFormatedTime Format Time results based on timePrecision field
 func getFormatedTime(tick float64, timePrecision string, location *time.Location) interface{} {
+	if timePrecision != "rfc3339" && location.String() != "UTC" {
+		return time.Unix(0, int64(tick)*int64(time.Millisecond)).UTC().In(location)
+	}
+
 	switch timePrecision {
 	case "rfc3339":
 		unixTimeUTC := time.Unix(0, int64(tick)*int64(time.Millisecond)).UTC()
 		return unixTimeUTC.Format(time.RFC3339)
-	case "timestamp":
+	case "ms":
 		return tick
+	case "s":
+		return tick / 1000
+	case "us", "timestamp":
+		return tick * 1000
+	case "ns":
+		return tick * 1000000
 	default:
 		if location.String() != "UTC" {
 			return time.Unix(0, int64(tick)*int64(time.Millisecond)).UTC().In(location)
