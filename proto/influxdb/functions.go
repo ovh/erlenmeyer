@@ -655,6 +655,8 @@ func removeAllLabels(keepLabels []string) string {
 	for _, key := range keepLabels {
 		res += fmt.Sprintf("'%s' 'key' STORE\n", key)
 		res += "DUP <% $key CONTAINSKEY %> <% $saveLabels SWAP $key GET $key PUT 'saveLabels' STORE %> <% DROP %> IFTE\n"
+		res += "DUP <% '.INFLUXQL_COLUMN_NAME' CONTAINSKEY %> <% "
+		res += "'.INFLUXQL_COLUMN_NAME' GET <% $key == %> <% $saveLabels $key '.INFLUXQL_COLUMN_NAME' PUT 'saveLabels' STORE %> IFT %> <% DROP %> IFTE\n"
 	}
 	res += "DROP { NULL NULL } RELABEL \n"
 	res += "$saveLabels RELABEL \n"
