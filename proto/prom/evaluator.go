@@ -212,6 +212,10 @@ func (ev *evaluator) matrixSelector(selector *promql.MatrixSelector, node *core.
 		fetchPayload.Absent = true
 	}
 
+	if ctx.IsInstant {
+		fetchPayload.Instant = true
+	}
+
 	node.Left = core.NewEmptyNode()
 	node.Left.Level = node.Level + 1
 	node.Left.Payload = bucketizePayload
@@ -287,6 +291,7 @@ func (ev *evaluator) vectorSelector(selector *promql.VectorSelector, node *core.
 		var fetchPayload core.FetchPayload
 		var setName string
 		var hasName bool
+		fetchPayload.Instant = true
 
 		setName, hasName, fetchPayload.Labels = labelMatchersToMapLabels(selector.LabelMatchers...)
 

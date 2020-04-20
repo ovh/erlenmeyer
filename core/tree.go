@@ -65,6 +65,7 @@ type FetchPayload struct {
 	Step      string
 	Offset    string
 	Absent    bool
+	Instant   bool
 }
 
 // AggregatePayload represents an aggregation operation on a vector.

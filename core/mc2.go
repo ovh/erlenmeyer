@@ -127,12 +127,16 @@ func (n *Node) Write(b *bytes.Buffer) {
 			}
 		} else {
 
-			if p.Absent {
-				b.WriteString(" " + p.Start + " 15 m - ISO8601")
+			if p.Instant {
+				b.WriteString(" " + p.Start + " " + p.End + " ")
 			} else {
-				b.WriteString(" " + p.Start + " ISO8601")
+				if p.Absent {
+					b.WriteString(" " + p.Start + " 15 m - ISO8601")
+				} else {
+					b.WriteString(" " + p.Start + " ISO8601")
+				}
+				b.WriteString(" " + p.End + " ISO8601")
 			}
-			b.WriteString(" " + p.End + " ISO8601")
 		}
 
 		b.WriteString(" ] FETCH \n")
