@@ -62,6 +62,7 @@ func (p *InfluxParser) getSelectStatementScript(statement *influxql.SelectStatem
 
 	selectSubMc2 := make([]string, len(subQueries))
 	duration, tags := statement.Dimensions.Normalize()
+	hasSubQueries := len(subQueries) > 0
 	for index, subQuery := range subQueries {
 		subQueryParser := &InfluxParser{Classnames: make([]string, 0), Token: p.Token, End: "$end", BucketTime: "0", BucketCount: "1", Separator: p.Separator, KeepTopLabels: p.KeepTopLabels}
 		for _, tag := range tags {
@@ -363,7 +364,9 @@ func (p *InfluxParser) getSelectStatementScript(statement *influxql.SelectStatem
 
 		if p.HasWildCard {
 		} else if !starQuery {
-			mc2 += fmt.Sprintf(" { '.INFLUXQL_COLUMN_NAME' '%s' } RELABEL \n", fieldName)
+			if !hasSubQueries {
+				mc2 += fmt.Sprintf(" { '.INFLUXQL_COLUMN_NAME' '%s' } RELABEL \n", fieldName)
+			}
 		} else {
 			mc2 += " { '.InfluxDBName' NULL } RELABEL \n"
 		}
