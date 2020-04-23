@@ -65,9 +65,7 @@ func (p *InfluxParser) getSelectStatementScript(statement *influxql.SelectStatem
 	hasSubQueries := len(subQueries) > 0
 	for index, subQuery := range subQueries {
 		subQueryParser := &InfluxParser{Classnames: make([]string, 0), Token: p.Token, End: "$end", BucketTime: "0", BucketCount: "1", Separator: p.Separator, KeepTopLabels: p.KeepTopLabels}
-		for _, tag := range tags {
-			subQueryParser.GroupByTags = append(p.GroupByTags, "'"+tag+"'")
-		}
+
 		prefix, resResp, subselectValidField, subselectTagsField, err := subQueryParser.getSelectStatementScript(subQuery, warpServer, txn, subqueryLevel+1, statementid)
 
 		if resResp != nil {
