@@ -366,6 +366,14 @@ func (p *InfluxParser) getSelectStatementScript(statement *influxql.SelectStatem
 		} else if !starQuery {
 			if !hasSubQueries {
 				mc2 += fmt.Sprintf(" { '.INFLUXQL_COLUMN_NAME' '%s' } RELABEL \n", fieldName)
+			} else {
+				for _, ref := range varRefNames {
+					mc2 += " <% DROP <% DUP NAME"
+					mc2 += fmt.Sprintf(" '%s' ", ref.Val)
+					mc2 += " SWAP CONTAINS %> <% "
+					mc2 += fmt.Sprintf(" { '.INFLUXQL_COLUMN_NAME' '%s' } RELABEL ", fieldName)
+					mc2 += " %> IFT %> LMAP \n"
+				}
 			}
 		} else {
 			mc2 += " { '.InfluxDBName' NULL } RELABEL \n"
