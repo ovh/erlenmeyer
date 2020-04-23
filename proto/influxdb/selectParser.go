@@ -197,7 +197,24 @@ func (p *InfluxParser) getSelectStatementScript(statement *influxql.SelectStatem
 	}
 
 	if len(where) > 0 {
-		findmc2 := fmt.Sprintf("[ '%s' '%s' {} ] FIND\n", p.Token, findClass)
+		findmc2 := fmt.Sprintf("[ '%s' '%s' {} ] \n", p.Token, findClass)
+		findmc2 += `
+		FINDSETS KEYLIST SWAP KEYLIST APPEND UNIQUE 'tags' STORE 
+		<%
+			DROP
+			NEWGTS SWAP RENAME
+			$tags
+			<%
+				{ 
+				SWAP
+				'true'
+				}
+				RELABEL
+			%>
+			FOREACH
+		%>
+		LMAP
+		`
 		findQuery, err := warpServer.Query(findmc2, txn)
 
 		if err != nil {
