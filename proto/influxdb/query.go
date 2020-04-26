@@ -927,6 +927,10 @@ func splitPerTagsResult(seriesSet []core.GeoTimeSeries, statementid int, timeCol
 
 		seriesSet, containsSeries := splitSeries[stringSet]
 
+		for tag := range series.Attrs {
+			delete(series.Labels, tag)
+		}
+
 		if containsSeries {
 			splitSeries[stringSet] = append(seriesSet, series)
 		} else {
