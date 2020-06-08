@@ -6,6 +6,7 @@ import (
 
 	"github.com/ovh/erlenmeyer/core"
 	"github.com/ovh/erlenmeyer/proto/prom/promql"
+	"github.com/spf13/viper"
 
 	log "github.com/sirupsen/logrus"
 
@@ -200,7 +201,24 @@ func (ev *evaluator) matrixSelector(selector *promql.MatrixSelector, node *core.
 	bucketizePayload.BucketSpan = fmt.Sprintf("%v ", ctx.Step)
 	bucketizePayload.BucketCount = fmt.Sprintf("%v000 %v000 - %v / TOLONG", ctx.End, ctx.Start, ctx.Step)
 	bucketizePayload.BucketRange = fmt.Sprintf("%v 'range' STORE", selRange)
-	bucketizePayload.Filler = "FILLPREVIOUS"
+	bucketizePayload.PreBucketize = `
+<%
+	DROP 
+	` + viper.GetString("prometheus.fillprevious.period") + `
+    1 'splits_945fa9bc3027d7025e3' TIMESPLIT 
+    <% 
+        DROP
+        DUP LASTTICK 'lt' STORE
+        DUP FIRSTTICK 'ft' STORE
+        [ SWAP bucketizer.last $lt 60 s $lt $ft - 60 s / TOLONG 1 + ] BUCKETIZE FILLPREVIOUS 0 GET
+        { 'splits_945fa9bc3027d7025e3' '' } RELABEL
+    %>
+    LMAP
+    MERGE
+%> 
+LMAP 
+UNBUCKETIZE
+	`
 
 	if ctx.IsRate {
 		bucketizePayload.ApplyRate = true
@@ -318,8 +336,24 @@ func (ev *evaluator) vectorSelector(selector *promql.VectorSelector, node *core.
 		bucketizePayload.BucketSpan = fmt.Sprintf("%v ", ctx.Step)
 
 		bucketizePayload.BucketCount = fmt.Sprintf("%v000 %v000 - %v / TOLONG", ctx.End, ctx.Start, ctx.Step)
-		bucketizePayload.Filler = "FILLPREVIOUS"
-
+		bucketizePayload.PreBucketize = `
+<%
+	DROP 
+	` + viper.GetString("prometheus.fillprevious.period") + `
+    1 'splits_945fa9bc3027d7025e3' TIMESPLIT 
+    <% 
+        DROP
+        DUP LASTTICK 'lt' STORE
+        DUP FIRSTTICK 'ft' STORE
+        [ SWAP bucketizer.last $lt 60 s $lt $ft - 60 s / TOLONG 1 + ] BUCKETIZE FILLPREVIOUS 0 GET
+        { 'splits_945fa9bc3027d7025e3' '' } RELABEL
+    %>
+    LMAP
+    MERGE
+%> 
+LMAP 
+UNBUCKETIZE
+	`
 		var fetchPayload core.FetchPayload
 		if ctx.hasAbsent {
 			bucketizePayload.Absent = true

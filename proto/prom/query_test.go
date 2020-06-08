@@ -101,7 +101,6 @@ var tests = []testStruct{
 		ShouldContains: []string{
 			"[ $token 'http_requests_total' {}  1435781430781000 604800000000 -  ISO8601 1435785630123000 604800000000 -  ISO8601 ] FETCH",
 			"300000000 'range' STORE [ SWAP bucketizer.last 1435785630123000 604800000000 -  5 s  1435785630123000 1435781430781000 - 5 s / TOLONG ] BUCKETIZE",
-			"FILLPREVIOUS",
 		},
 	},
 	{
@@ -387,14 +386,12 @@ var tests = []testStruct{
 		Query: `topk(5, http_requests_total)`,
 		ShouldContains: []string{
 			" [ SWAP bucketizer.last 1435785630123000 0 -  5 s  1435785630123000 1435781430781000 - 5 s / TOLONG ] BUCKETIZE",
-			"FILLPREVIOUS",
 			"<% [ SWAP bucketizer.mean 0 0 1 ] BUCKETIZE VALUES 0 GET 0 GET %> SORTBY REVERSE [ 0 5 1 - ] SUBLIST"},
 	},
 	{
 		Query: `bottomk(5, http_requests_total)`,
 		ShouldContains: []string{
 			" [ SWAP bucketizer.last 1435785630123000 0 -  5 s  1435785630123000 1435781430781000 - 5 s / TOLONG ] BUCKETIZE",
-			"FILLPREVIOUS",
 			"<% [ SWAP bucketizer.mean 0 0 1 ] BUCKETIZE VALUES 0 GET 0 GET %> SORTBY [ 0 5 1 - ] SUBLIST"},
 	},
 	{
@@ -466,39 +463,37 @@ var tests = []testStruct{
 		Query: `avg_over_time(http_requests_total[12m])`,
 		ShouldContains: []string{
 			" [ SWAP bucketizer.last 1435785630123000 0 -  5 s  1435785630123000 1435781430781000 - 5 s / TOLONG ] BUCKETIZE",
-			"FILLPREVIOUS"},
+		},
 	},
 	{
 		Query: `min_over_time(http_requests_total[12m])`,
 		ShouldContains: []string{
 			"720000000 'range' STORE [ SWAP bucketizer.last 1435785630123000 0 -  5 s  1435785630123000 1435781430781000 - 5 s / TOLONG ] BUCKETIZE",
-			"FILLPREVIOUS"},
+		},
 	},
 	{
 		Query: `max_over_time(http_requests_total[12m])`,
 		ShouldContains: []string{
 			"720000000 'range' STORE [ SWAP bucketizer.last 1435785630123000 0 -  5 s  1435785630123000 1435781430781000 - 5 s / TOLONG ] BUCKETIZE",
-			"FILLPREVIOUS"},
+		},
 	},
 	{
 		Query: `sum_over_time(http_requests_total[12m])`,
 		ShouldContains: []string{
 			"720000000 'range' STORE [ SWAP bucketizer.last 1435785630123000 0 -  5 s  1435785630123000 1435781430781000 - 5 s / TOLONG ] BUCKETIZE",
-			"FILLPREVIOUS"},
+		},
 	},
 	{
 		Query: `stddev_over_time(http_requests_total[12m])`,
 		ShouldContains: []string{
 			"DUP <% VALUES SIZE 0 == %> <% NEWGTS 'http_requests_total' RENAME {}  RELABEL 1 ->LIST APPEND %> IFT",
 			"720000000 'range' STORE [ SWAP bucketizer.last 1435785630123000 0 -  5 s  1435785630123000 1435781430781000 - 5 s / TOLONG ] BUCKETIZE",
-			"FILLPREVIOUS",
 			"[ SWAP true mapper.sd $range $step MAX -1 * 0 0 ] MAP"},
 	},
 	{
 		Query: `stdvar_over_time(http_requests_total[12m])`,
 		ShouldContains: []string{
 			"720000000 'range' STORE [ SWAP bucketizer.last 1435785630123000 0 -  5 s  1435785630123000 1435781430781000 - 5 s / TOLONG ] BUCKETIZE",
-			"FILLPREVIOUS",
 			"[ SWAP true mapper.var $range $step MAX -1 * 0 0 ] MAP"},
 	},
 	{

@@ -67,6 +67,7 @@ func initConfig() {
 	}
 
 	viper.SetDefault("timeunit", "us")
+	viper.SetDefault("prometheus.fillprevious.period", "5 m")
 
 	// Load user defined config
 	cfgFile := viper.GetString("config")

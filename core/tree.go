@@ -106,15 +106,16 @@ type Context struct {
 
 // BucketizePayload is the payload for the bucketize function
 type BucketizePayload struct {
-	LastBucket  string
-	BucketSpan  string
-	BucketCount string
-	BucketRange string
-	Filler      string
-	Op          string
-	Step        string
-	ApplyRate   bool
-	Absent      bool
+	LastBucket   string
+	BucketSpan   string
+	BucketCount  string
+	BucketRange  string
+	PreBucketize string
+	Filler       string
+	Op           string
+	Step         string
+	ApplyRate    bool
+	Absent       bool
 }
 
 // FindPayload is the payload for the find function
