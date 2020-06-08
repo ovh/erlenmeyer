@@ -177,6 +177,7 @@ func (n *Node) Write(b *bytes.Buffer) {
 			b.WriteString("[ SWAP mapper.last 15 m $step / 0 $instant -1 * ] MAP\n")
 			b.WriteString(p.BucketRange + " [ SWAP " + p.Op + " " + p.LastBucket + " " + p.BucketSpan + " " + p.BucketCount + " ] BUCKETIZE\n")
 		} else {
+			b.WriteString(p.PreBucketize + "\n")
 			b.WriteString(p.BucketRange + " [ SWAP " + p.Op + " " + p.LastBucket + " " + p.BucketSpan + " " + p.BucketCount + " ] BUCKETIZE\n")
 			b.WriteString(p.Filler + "\n")
 		}
