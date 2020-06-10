@@ -199,7 +199,7 @@ func (ev *evaluator) matrixSelector(selector *promql.MatrixSelector, node *core.
 	bucketizePayload.Op = ctx.Bucketizer
 	bucketizePayload.LastBucket = fmt.Sprintf("%v000 ", ctx.End) + fmt.Sprintf("%v", selector.Offset.Nanoseconds()/1000) + " - "
 	bucketizePayload.BucketSpan = fmt.Sprintf("%v ", ctx.Step)
-	bucketizePayload.BucketCount = fmt.Sprintf("%v000 %v000 - %v / TOLONG", ctx.End, ctx.Start, ctx.Step)
+	bucketizePayload.BucketCount = fmt.Sprintf("%v000 %v000 %v 2 * - - %v / TOLONG 1 + ", ctx.End, ctx.Start, ctx.Step, ctx.Step)
 	bucketizePayload.BucketRange = fmt.Sprintf("%v 'range' STORE", selRange)
 	bucketizePayload.PreBucketize = `
 <%
@@ -247,7 +247,7 @@ UNBUCKETIZE
 	}
 	fetchPayload.ClassName = string(selector.Name)
 
-	fetchPayload.Start = fmt.Sprintf("%v000 ", ctx.Start) + fmt.Sprintf("%v", selector.Offset.Nanoseconds()/1000) + " - "
+	fetchPayload.Start = fmt.Sprintf("%v000 %v 2 * - ", ctx.Start, ctx.Step) + fmt.Sprintf("%v", selector.Offset.Nanoseconds()/1000) + " - "
 	fetchPayload.End = fmt.Sprintf("%v000 ", ctx.End) + fmt.Sprintf("%v", selector.Offset.Nanoseconds()/1000) + " - "
 	fetchPayload.Step = ctx.Step
 	if selector.Offset.String() != "0s" {
@@ -335,7 +335,7 @@ func (ev *evaluator) vectorSelector(selector *promql.VectorSelector, node *core.
 		bucketizePayload.LastBucket = fmt.Sprintf("%v000 ", ctx.End) + fmt.Sprintf("%v", selector.Offset.Nanoseconds()/1000) + " - "
 		bucketizePayload.BucketSpan = fmt.Sprintf("%v ", ctx.Step)
 
-		bucketizePayload.BucketCount = fmt.Sprintf("%v000 %v000 - %v / TOLONG", ctx.End, ctx.Start, ctx.Step)
+		bucketizePayload.BucketCount = fmt.Sprintf("%v000 %v000 %v 2 * -  - %v / TOLONG 1 + ", ctx.End, ctx.Start, ctx.Step, ctx.Step)
 		bucketizePayload.PreBucketize = `
 <%
 	DROP 
@@ -377,7 +377,7 @@ UNBUCKETIZE
 		fetchPayload.Step = ctx.Step
 
 		fetchPayload.End = fmt.Sprintf("%v000 ", ctx.End) + fmt.Sprintf("%v", selector.Offset.Nanoseconds()/1000) + " - "
-		fetchPayload.Start = fmt.Sprintf("%v000 ", ctx.Start) + fmt.Sprintf("%v", selector.Offset.Nanoseconds()/1000) + " - "
+		fetchPayload.Start = fmt.Sprintf("%v000 %v 2 * - ", ctx.Start, ctx.Step) + fmt.Sprintf("%v", selector.Offset.Nanoseconds()/1000) + " - "
 
 		if selector.Offset.String() != "0s" {
 			fetchPayload.Offset = fmt.Sprintf("%v", selector.Offset.Nanoseconds()/1000)
