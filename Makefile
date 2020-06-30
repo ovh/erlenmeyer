@@ -27,7 +27,7 @@ all: format lint dist
 
 .PHONY: init
 init:
-	curl -sfL https://install.goreleaser.com/github.com/golangci/golangci-lint.sh | sh -s -- -b $(GOPATH)/bin v1.25.0
+	curl -sfL https://install.goreleaser.com/github.com/golangci/golangci-lint.sh | sh -s -- -b $(GOPATH)/bin v1.27.0
 
 .PHONY: dep
 dep:
