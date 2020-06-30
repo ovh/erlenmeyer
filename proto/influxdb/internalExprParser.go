@@ -54,11 +54,11 @@ func (p *InfluxParser) parseExpr(getExpr influxql.Expr, level int, selectors []s
 		exprType = exprTypeCall
 		mc2 += call
 	case *influxql.BinaryExpr:
-		leftString, leftType, leftError := p.parseExpr(expr.LHS, level, selectors, where)
+		leftString, leftType, leftError := p.parseExpr(expr.LHS, level+1, selectors, where)
 		if leftError != nil {
 			return "", Unknown, leftError
 		}
-		rightString, rightType, rightError := p.parseExpr(expr.RHS, level, selectors, where)
+		rightString, rightType, rightError := p.parseExpr(expr.RHS, level+1, selectors, where)
 		if rightError != nil {
 			return "", Unknown, rightError
 		}
@@ -129,7 +129,7 @@ func (p *InfluxParser) parseMathOperation(binaryOperation BinaryOperationType, o
 		case SeriesToScalar:
 			return fmt.Sprintf("[ $left-%d $right-%d TODOUBLE mapper.add 0 0 0 ] MAP\n", level, level), nil
 		case SeriesToSeries:
-			return fmt.Sprintf("[ $right-%d $left-%d NULL op.add ] APPLY NONEMPTY\n", level, level), nil
+			return fmt.Sprintf("[ $left-%d $right-%d NULL op.add ] APPLY NONEMPTY\n", level, level), nil
 		default:
 			return "", fmt.Errorf("Unvalid operation types")
 		}
@@ -143,7 +143,7 @@ func (p *InfluxParser) parseMathOperation(binaryOperation BinaryOperationType, o
 		case SeriesToScalar:
 			return fmt.Sprintf("[ $left-%d $right-%d TODOUBLE -1 * mapper.add 0 0 0 ] MAP\n", level, level), nil
 		case SeriesToSeries:
-			return fmt.Sprintf("[ $right-%d ", level) + "'%2B.tosub' RENAME " + fmt.Sprintf("$left-%d ", level) + " NULL op.sub ] APPLY NONEMPTY\n", nil
+			return fmt.Sprintf("[ $left-%d ", level) + "'%2B.tosub' RENAME " + fmt.Sprintf("$right-%d ", level) + " NULL op.sub ] APPLY NONEMPTY\n", nil
 		default:
 			return "", fmt.Errorf("Unvalid operation types")
 		}
@@ -157,7 +157,7 @@ func (p *InfluxParser) parseMathOperation(binaryOperation BinaryOperationType, o
 		case SeriesToScalar:
 			return fmt.Sprintf("[ $left-%d $right-%d TODOUBLE mapper.mul 0 0 0 ] MAP\n", level, level), nil
 		case SeriesToSeries:
-			return fmt.Sprintf("[ $right-%d $left-%d NULL op.mul ] APPLY NONEMPTY\n", level, level), nil
+			return fmt.Sprintf("[ $left-%d $right-%d NULL op.mul ] APPLY NONEMPTY\n", level, level), nil
 		default:
 			return "", fmt.Errorf("Unvalid operation types")
 		}
@@ -171,7 +171,7 @@ func (p *InfluxParser) parseMathOperation(binaryOperation BinaryOperationType, o
 		case SeriesToScalar:
 			return fmt.Sprintf("[ $left-%d 1 $right-%d TODOUBLE / mapper.mul 0 0 0 ] MAP\n", level, level), nil
 		case SeriesToSeries:
-			return fmt.Sprintf("[ $right-%d ", level) + "'%2B.todiv' RENAME " + fmt.Sprintf("$left-%d ", level) + " NULL op.div ] APPLY NONEMPTY\n", nil
+			return fmt.Sprintf("[ $left-%d ", level) + "'%2B.todiv' RENAME " + fmt.Sprintf("$right-%d ", level) + " NULL op.div ] APPLY NONEMPTY\n", nil
 		default:
 			return "", fmt.Errorf("Unvalid operation types")
 		}
