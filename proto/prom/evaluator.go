@@ -54,6 +54,7 @@ func (ev *evaluator) eval(expr promql.Expr, node *core.Node, ctx Context) {
 	switch e := expr.(type) {
 
 	case *promql.BinaryExpr:
+		vm := e.VectorMatching
 		lhs := core.NewEmptyNode()
 		rhs := core.NewEmptyNode()
 
@@ -64,8 +65,22 @@ func (ev *evaluator) eval(expr promql.Expr, node *core.Node, ctx Context) {
 
 		ev.eval(e.LHS, lhs, ctx)
 		ev.eval(e.RHS, rhs, ctx)
+
 		node.Payload = core.BinaryExprPayload{
-			Op: fmt.Sprintf("%+v", e.Op),
+			Op:             fmt.Sprintf("%+v", e.Op),
+			FilteredLabels: make([]string, 0),
+			IncludeLabels:  make([]string, 0),
+		}
+
+		if vm != nil {
+			node.Payload = core.BinaryExprPayload{
+				Op:             fmt.Sprintf("%+v", e.Op),
+				IsOn:           vm.On,
+				IsIgnoring:     len(vm.MatchingLabels) > 0 && vm.On == false,
+				FilteredLabels: vm.MatchingLabels,
+				IncludeLabels:  vm.Include,
+				Card:           vm.Card.String(),
+			}
 		}
 
 	case *promql.Call:

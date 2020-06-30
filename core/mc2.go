@@ -378,7 +378,24 @@ func (n *Node) Write(b *bytes.Buffer) {
 		leftNodeType := fmt.Sprintf("%T", n.Left.Payload)
 		rightNodeType := fmt.Sprintf("%T", n.Right.Payload)
 
-		convertBinaryExpr(b, p.Op, leftNodeType, rightNodeType)
+		if len(p.FilteredLabels) == 0 {
+			b.WriteString(" [] 'ignoringLabels' STORE \n")
+			b.WriteString("[ 'hash_945fa9bc3027d7025e3' ] 'hashlabel' STORE \n")
+
+		} else if p.IsOn {
+			b.WriteString(" [] 'ignoringLabels' STORE \n")
+			b.WriteString(" [ '" + strings.Join(p.FilteredLabels, "' '") + "' ] 'hashlabel' STORE \n")
+		} else if p.IsIgnoring {
+			b.WriteString(" [ '" + strings.Join(p.FilteredLabels, "' '") + "' ] 'ignoringLabels' STORE \n")
+			b.WriteString("[ 'hash_945fa9bc3027d7025e3' ] 'hashlabel' STORE \n")
+		}
+
+		if len(p.IncludeLabels) == 0 {
+			b.WriteString(" [] 'include_labels' STORE \n")
+		} else {
+			b.WriteString(" [ '" + strings.Join(p.IncludeLabels, "' '") + "' ] 'include_labels' STORE \n")
+		}
+		convertBinaryExpr(b, p.Op, leftNodeType, rightNodeType, p.Card)
 
 	case NumberLiteralPayload:
 		b.WriteString(fmt.Sprintf(" %s ", p.Value))
@@ -482,6 +499,122 @@ type binaryExprEquivalence struct {
 	VectorToScalar string // http_request /12
 	ScalarToVector string // http_request /12
 	VectorToVector string // GTS1 / GTS2
+	GroupLeft      string // GTS1 group_left / GTS2
+	GroupRight     string // GTS1 group_left / GTS2 group_right
+}
+
+func groupOnPer(side, operator string, addLeftSuffix bool) string {
+	reverse := "$right"
+	opSeries := "$full_series $reverse_tmp"
+	if addLeftSuffix {
+		opSeries = "$full_series '%2B.suffix' RENAME $reverse_tmp"
+	}
+
+	applySuffix := ""
+	switch operator {
+	case "op.gt", "op.ge", "op.le", "op.lt", "op.eq", "op.ne":
+		if side == "$left" {
+			applySuffix = `
+				'maskSeries' STORE
+				[ 
+					$maskSeries  
+					$full_series 
+					[] op.mask 
+				] APPLY 
+			`
+		} else {
+			applySuffix = `
+				'maskSeries' STORE
+				[ 
+					$maskSeries  
+					$reverse_tmp 
+					NULL op.mask 
+				] APPLY 
+			`
+		}
+	}
+
+	if side == "$right" {
+		reverse = "$left"
+		if addLeftSuffix {
+			opSeries = "$reverse_tmp '%2B.suffix' RENAME $full_series"
+		} else {
+			opSeries = "$reverse_tmp $full_series"
+		}
+	}
+
+	mc2 := "DROP " + side + ` @HASHLABELS
+   <%
+	   DROP
+	   
+	   DUP CLONEEMPTY 'empty_series' STORE
+	   DUP 1 ->LIST 'full_series' STORE
+	   LABELS 
+	   $hashlabel SUBMAP 'submap_labels' STORE 
+	   [ ` + reverse + ` @HASHLABELS [] $submap_labels filter.bylabels ] FILTER 'reverse_tmp' STORE
+	   [ ` + opSeries + ` [] ` + operator + ` ]  APPLY ` + applySuffix + `
+	   $include_labels PARTITION
+	   [] 
+       SWAP
+	   <%
+		   SWAP $include_labels SUBMAP 'sub_labels' STORE 
+		   $empty_series + REVERSE  MERGE $sub_labels RELABEL DEDUP
+		   +
+	   %>
+	   FOREACH
+   %>
+   LMAP
+   FLATTEN NONEMPTY { 'hash_945fa9bc3027d7025e3' '' } RELABEL
+`
+	return mc2
+}
+
+func getComparatorScript(operator string) string {
+	mc2 := `
+
+	'inputs' STORE
+	$inputs 
+	<% 
+		DROP 
+		<%
+			// Case were hashlabels contains on labels
+			$hashlabel SIZE 1 == $hashlabel 'hash_945fa9bc3027d7025e3' CONTAINS SWAP DROP AND !
+		%>
+		<%
+			$hashlabel
+			PARTITION
+			[]
+			SWAP
+			<%
+				SWAP DROP 
+				MERGE DEDUP
+				+
+			%>
+			FOREACH
+		%>
+		IFT 
+		@HASHLABELS 
+		DUP 
+		APPEND 
+	%> LMAP 'inputs' STORE
+	$inputs 0 GET 'init' STORE 
+	[ $inputs 0 GET $inputs 1 GET [ 'hash_945fa9bc3027d7025e3' ] ` + operator + ` ]  APPLY NONEMPTY { 'hash_945fa9bc3027d7025e3' '' } RELABEL @HASHLABELS
+	<% DROP 
+		[ SWAP DUP LABELS 'hash_945fa9bc3027d7025e3' GET 'intHash' STORE  ] 'maskSeries' STORE 
+		[ $init [] { 'hash_945fa9bc3027d7025e3' $intHash } filter.bylabels ] FILTER 'filterSeries' STORE
+		<% $filterSeries SIZE 0 == %>
+		<% $filterSeries %>
+		<%
+			[ 
+				$maskSeries
+				$filterSeries 
+				[] op.mask 
+			] APPLY 
+		%> IFTE
+	%> LMAP 
+	FLATTEN NONEMPTY { 'hash_945fa9bc3027d7025e3' '' } RELABEL
+	`
+	return mc2
 }
 
 var binaryExprEquivalences = map[string]binaryExprEquivalence{
@@ -489,73 +622,97 @@ var binaryExprEquivalences = map[string]binaryExprEquivalence{
 		ScalarToScalar: " + ",
 		VectorToScalar: "[ SWAP $right TODOUBLE mapper.add 0 0 0 ] MAP\n",
 		ScalarToVector: "[ SWAP $left TODOUBLE mapper.add 0 0 0 ] MAP\n",
-		VectorToVector: "[ SWAP  DUP 0 GET @HASHLABELS SWAP 1 GET @HASHLABELS [ 'hash_945fa9bc3027d7025e3' ] op.add ]  APPLY NONEMPTY { 'hash_945fa9bc3027d7025e3' '' } RELABEL \n",
+		VectorToVector: "[ SWAP  DUP 0 GET @HASHLABELS SWAP 1 GET @HASHLABELS $hashlabel op.add ]  APPLY NONEMPTY { 'hash_945fa9bc3027d7025e3' '' } RELABEL \n",
+		GroupLeft:      groupOnPer("$left", "op.add", false),
+		GroupRight:     groupOnPer("$right", "op.add", false),
 	},
 	"-": {
 		ScalarToScalar: " - ",
 		VectorToScalar: "[ SWAP 0 $right TODOUBLE - mapper.add 0 0 0 ] MAP\n",
 		ScalarToVector: "[ SWAP [ SWAP -1 mapper.mul 0 0 0 ] MAP $left TODOUBLE mapper.add 0 0 0 ] MAP\n",
-		VectorToVector: "[ SWAP  DUP 0 GET @HASHLABELS '%2B.tosub' RENAME SWAP 1 GET @HASHLABELS [ 'hash_945fa9bc3027d7025e3' ] op.sub ]  APPLY NONEMPTY { 'hash_945fa9bc3027d7025e3' '' } RELABEL \n",
+		VectorToVector: "[ SWAP  DUP 0 GET @HASHLABELS '%2B.tosub' RENAME SWAP 1 GET @HASHLABELS $hashlabel op.sub ]  APPLY NONEMPTY { 'hash_945fa9bc3027d7025e3' '' } RELABEL \n",
+		GroupLeft:      groupOnPer("$left", "op.sub", true),
+		GroupRight:     groupOnPer("$right", "op.sub", true),
 	},
 	"*": {
 		ScalarToScalar: " * ",
 		VectorToScalar: "[ SWAP $right TODOUBLE mapper.mul 0 0 0 ] MAP\n",
 		ScalarToVector: "[ SWAP $left TODOUBLE mapper.mul 0 0 0 ] MAP\n",
-		VectorToVector: "[ SWAP  DUP 0 GET @HASHLABELS SWAP 1 GET @HASHLABELS [ 'hash_945fa9bc3027d7025e3' ] op.mul ]  APPLY NONEMPTY { 'hash_945fa9bc3027d7025e3' '' } RELABEL \n",
+		VectorToVector: "[ SWAP  DUP 0 GET @HASHLABELS SWAP 1 GET @HASHLABELS $hashlabel op.mul ]  APPLY NONEMPTY { 'hash_945fa9bc3027d7025e3' '' } RELABEL \n",
+		GroupLeft:      groupOnPer("$left", "op.mul", false),
+		GroupRight:     groupOnPer("$right", "op.mul", false),
 	},
 	"/": {
 		ScalarToScalar: " / ",
 		VectorToScalar: "[ SWAP 1 $right TODOUBLE / mapper.mul 0 0 0 ] MAP\n",
-		ScalarToVector: warpHashLabels + " [ SWAP @HASHLABELS DUP [ SWAP $left mapper.replace 0 0 0 ] MAP SWAP @HASHLABELS [ 'hash_945fa9bc3027d7025e3' ] op.div ]  APPLY NONEMPTY { 'hash_945fa9bc3027d7025e3' '' } RELABEL\n",
-		VectorToVector: "[ SWAP  DUP 0 GET @HASHLABELS '%2B.todiv' RENAME SWAP 1 GET @HASHLABELS [ 'hash_945fa9bc3027d7025e3' ] op.div ]  APPLY NONEMPTY { 'hash_945fa9bc3027d7025e3' '' } RELABEL \n",
+		ScalarToVector: warpHashLabels + " [ SWAP @HASHLABELS DUP [ SWAP $left mapper.replace 0 0 0 ] MAP SWAP @HASHLABELS $hashlabel op.div ]  APPLY NONEMPTY { 'hash_945fa9bc3027d7025e3' '' } RELABEL\n",
+		VectorToVector: "[ SWAP  DUP 0 GET @HASHLABELS '%2B.todiv' RENAME SWAP 1 GET @HASHLABELS $hashlabel op.div ]  APPLY NONEMPTY { 'hash_945fa9bc3027d7025e3' '' } RELABEL \n",
+		GroupLeft:      groupOnPer("$left", "op.div", true),
+		GroupRight:     groupOnPer("$right", "op.div", true),
 	},
 	"%": {
 		ScalarToScalar: " % ",
 		VectorToScalar: NewSimpleMacroMapper("$right %"),
 		ScalarToVector: NewSimpleMacroMapper("$left %"),
-		VectorToVector: "'modulo across GTS not supported' MSGFAIL", // FIXME:
+		VectorToVector: "'modulo across GTS not supported' MSGFAIL\n", // FIXME:
+		GroupLeft:      "'modulo across GTS not supported' MSGFAIL\n", // FIXME:
+		GroupRight:     "'modulo across GTS not supported' MSGFAIL\n", // FIXME:
 	},
 	"^": {
 		ScalarToScalar: " ** ",
 		VectorToScalar: "[ SWAP $right TODOUBLE mapper.pow 0 0 0 ] MAP\n",
 		ScalarToVector: "'pow with scalar across GTS not supported' MSGFAIL\n", // FIXME:
 		VectorToVector: "'pow across GTS not supported' MSGFAIL\n",             // FIXME:
+		GroupLeft:      "'pow across GTS not supported' MSGFAIL\n",             // FIXME:
+		GroupRight:     "'pow across GTS not supported' MSGFAIL\n",             // FIXME:
 	},
 	">": {
 		ScalarToScalar: " > ",
 		VectorToScalar: "[ SWAP $right DUP TYPEOF <% 'LONG' == %> <% TODOUBLE %> IFT mapper.gt 0 0 0 ] MAP\n NONEMPTY\n",
 		ScalarToVector: "[ SWAP $left DUP TYPEOF <% 'LONG' == %> <% TODOUBLE %> IFT mapper.le 0 0 0 ] MAP\n NONEMPTY\n",
-		VectorToVector: "DUP 0 GET SWAP <% DROP @HASHLABELS DUP APPEND %> LMAP \n DUP 0 GET 'init' STORE \n [ SWAP DUP 0 GET SWAP 1 GET [ 'hash_945fa9bc3027d7025e3' ] op.gt ]  APPLY NONEMPTY \n <% DROP [ [ ROT DUP LABELS 'hash_945fa9bc3027d7025e3' GET 'intHash' STORE  ]  [ $init [] { 'hash_945fa9bc3027d7025e3' $intHash } filter.bylabels ] FILTER [] op.mask ] APPLY %> LMAP \n FLATTEN NONEMPTY { 'hash_945fa9bc3027d7025e3' '' } RELABEL \n",
+		VectorToVector: getComparatorScript("op.gt"),
+		GroupLeft:      groupOnPer("$left", "op.gt", false),
+		GroupRight:     groupOnPer("$right", "op.gt", false),
 	},
 	"<": {
 		ScalarToScalar: " < ",
 		VectorToScalar: "[ SWAP $right DUP TYPEOF <% 'LONG' == %> <% TODOUBLE %> IFT mapper.lt 0 0 0 ] MAP\n NONEMPTY\n",
 		ScalarToVector: "[ SWAP $left DUP TYPEOF <% 'LONG' == %> <% TODOUBLE %> IFT mapper.ge 0 0 0 ] MAP\n NONEMPTY\n",
-		VectorToVector: "DUP 0 GET SWAP <% DROP @HASHLABELS DUP APPEND %> LMAP \n DUP 0 GET 'init' STORE \n [ SWAP DUP 0 GET SWAP 1 GET [ 'hash_945fa9bc3027d7025e3' ] op.lt ]  APPLY NONEMPTY \n <% DROP [ [ ROT DUP LABELS 'hash_945fa9bc3027d7025e3' GET 'intHash' STORE  ]  [ $init [] { 'hash_945fa9bc3027d7025e3' $intHash } filter.bylabels ] FILTER [] op.mask ] APPLY %> LMAP \n FLATTEN NONEMPTY { 'hash_945fa9bc3027d7025e3' '' } RELABEL \n",
+		VectorToVector: getComparatorScript("op.lt"),
+		GroupLeft:      groupOnPer("$left", "op.lt", false),
+		GroupRight:     groupOnPer("$right", "op.lt", false),
 	},
 	"==": {
 		ScalarToScalar: " == ",
 		VectorToScalar: "[ SWAP $right DUP TYPEOF <% 'LONG' == %> <% TODOUBLE %> IFT mapper.eq 0 0 0 ] MAP\n NONEMPTY\n",
 		ScalarToVector: "[ SWAP $left DUP TYPEOF <% 'LONG' == %> <% TODOUBLE %> IFT mapper.eq 0 0 0 ] MAP\n NONEMPTY\n",
-		VectorToVector: "DUP 0 GET SWAP <% DROP @HASHLABELS DUP APPEND %> LMAP \n DUP 0 GET 'init' STORE \n [ SWAP DUP 0 GET SWAP 1 GET [ 'hash_945fa9bc3027d7025e3' ] op.eq ]  APPLY NONEMPTY \n <% DROP [ [ ROT DUP LABELS 'hash_945fa9bc3027d7025e3' GET 'intHash' STORE  ]  [ $init [] { 'hash_945fa9bc3027d7025e3' $intHash } filter.bylabels ] FILTER [] op.mask ] APPLY %> LMAP \n FLATTEN NONEMPTY { 'hash_945fa9bc3027d7025e3' '' } RELABEL \n",
+		VectorToVector: getComparatorScript("op.eq"),
+		GroupLeft:      groupOnPer("$left", "op.eq", false),
+		GroupRight:     groupOnPer("$right", "op.eq", false),
 	},
 	"!=": {
 		ScalarToScalar: " != ",
 		VectorToScalar: "[ SWAP $right DUP TYPEOF <% 'LONG' == %> <% TODOUBLE %> IFT mapper.ne 0 0 0 ] MAP\n NONEMPTY\n",
 		ScalarToVector: "[ SWAP $left DUP TYPEOF <% 'LONG' == %> <% TODOUBLE %> IFT mapper.ne 0 0 0 ] MAP\n NONEMPTY\n",
-		VectorToVector: "DUP 0 GET SWAP <% DROP @HASHLABELS DUP APPEND %> LMAP \n DUP 0 GET 'init' STORE \n [ SWAP DUP 0 GET SWAP 1 GET [ 'hash_945fa9bc3027d7025e3' ] op.ne ]  APPLY NONEMPTY \n <% DROP [ [ ROT DUP LABELS 'hash_945fa9bc3027d7025e3' GET 'intHash' STORE  ]  [ $init [] { 'hash_945fa9bc3027d7025e3' $intHash } filter.bylabels ] FILTER [] op.mask ] APPLY %> LMAP \n FLATTEN NONEMPTY { 'hash_945fa9bc3027d7025e3' '' } RELABEL \n",
+		VectorToVector: getComparatorScript("op.ne"),
+		GroupLeft:      groupOnPer("$left", "op.ne", false),
+		GroupRight:     groupOnPer("$right", "op.ne", false),
 	},
 	">=": {
 		ScalarToScalar: " >= ",
 		VectorToScalar: "[ SWAP $right DUP TYPEOF <% 'LONG' == %> <% TODOUBLE %> IFT mapper.ge 0 0 0 ] MAP\n NONEMPTY\n",
 		ScalarToVector: "[ SWAP $left DUP TYPEOF <% 'LONG' == %> <% TODOUBLE %> IFT mapper.lt 0 0 0 ] MAP\n NONEMPTY\n",
-		VectorToVector: "DUP 0 GET SWAP <% DROP @HASHLABELS DUP APPEND %> LMAP \n DUP 0 GET 'init' STORE \n [ SWAP DUP 0 GET SWAP 1 GET [ 'hash_945fa9bc3027d7025e3' ] op.ge ]  APPLY NONEMPTY \n <% DROP [ [ ROT DUP LABELS 'hash_945fa9bc3027d7025e3' GET 'intHash' STORE  ]  [ $init [] { 'hash_945fa9bc3027d7025e3' $intHash } filter.bylabels ] FILTER [] op.mask ] APPLY %> LMAP \n FLATTEN NONEMPTY { 'hash_945fa9bc3027d7025e3' '' } RELABEL \n",
+		VectorToVector: getComparatorScript("op.ge"),
+		GroupLeft:      groupOnPer("$left", "op.ge", false),
+		GroupRight:     groupOnPer("$right", "op.ge", false),
 	},
 	"<=": {
 		ScalarToScalar: " <= ",
 		VectorToScalar: "[ SWAP $right DUP TYPEOF <% 'LONG' == %> <% TODOUBLE %> IFT mapper.le 0 0 0 ] MAP\n NONEMPTY\n",
 		ScalarToVector: "[ SWAP $left DUP TYPEOF <% 'LONG' == %> <% TODOUBLE %> IFT mapper.gt 0 0 0 ] MAP\n NONEMPTY\n",
-		VectorToVector: "DUP 0 GET SWAP <% DROP @HASHLABELS DUP APPEND %> LMAP \n DUP 0 GET 'init' STORE \n [ SWAP DUP 0 GET SWAP 1 GET [ 'hash_945fa9bc3027d7025e3' ] op.le ]  APPLY NONEMPTY \n <% DROP [ [ ROT DUP LABELS 'hash_945fa9bc3027d7025e3' GET 'intHash' STORE  ]  [ $init [] { 'hash_945fa9bc3027d7025e3' $intHash } filter.bylabels ] FILTER [] op.mask ] APPLY %> LMAP \n FLATTEN NONEMPTY { 'hash_945fa9bc3027d7025e3' '' } RELABEL \n",
+		VectorToVector: getComparatorScript("op.le"),
+		GroupLeft:      groupOnPer("$left", "op.le", false),
+		GroupRight:     groupOnPer("$right", "op.le", false),
 	},
 	"and": {
 		VectorToVector: `CLEAR [ $left DUP TYPEOF <% 'GTS' == %> <% [ SWAP ] %> IFT
@@ -563,6 +720,16 @@ var binaryExprEquivalences = map[string]binaryExprEquivalence{
 $right DUP TYPEOF <% 'LIST' == %> <% [ 0 GET ] %> IFT LABELS
 filter.bylabels ] FILTER\n
 `,
+		GroupLeft: `CLEAR [ $left DUP TYPEOF <% 'GTS' == %> <% [ SWAP ] %> IFT
+	[]
+	$right DUP TYPEOF <% 'LIST' == %> <% [ 0 GET ] %> IFT LABELS
+	filter.bylabels ] FILTER\n
+	`, // FIXME: VectorToVector is used to not break script
+		GroupRight: `CLEAR [ $left DUP TYPEOF <% 'GTS' == %> <% [ SWAP ] %> IFT
+	[]
+	$right DUP TYPEOF <% 'LIST' == %> <% [ 0 GET ] %> IFT LABELS
+	filter.bylabels ] FILTER\n
+	`, // FIXME: VectorToVector is used to not break script
 	},
 	"or": {
 		VectorToVector: `CLEAR
@@ -573,6 +740,22 @@ $left_labels <% 'value' STORE 'key' STORE  $value $key $right_labels SWAP GET <%
 [ $right DUP TYPEOF <% 'GTS' == %> <% [ SWAP ] %> IFT [] $right_labels filter.bylabels ] FILTER
 $left 2 ->LIST FLATTEN
 `,
+		GroupLeft: `CLEAR
+$left DUP TYPEOF 'LIST' <% == %> <% 0 GET %> IFT LABELS 'left_labels'  STORE
+$right DUP TYPEOF 'LIST' <% == %> <% 0 GET %> IFT LABELS 'right_labels' STORE
+
+$left_labels <% 'value' STORE 'key' STORE  $value $key $right_labels SWAP GET <% == %> <% $right_labels $key REMOVE DROP 'right_labels' STORE  %> IFT %> FOREACH
+[ $right DUP TYPEOF <% 'GTS' == %> <% [ SWAP ] %> IFT [] $right_labels filter.bylabels ] FILTER
+$left 2 ->LIST FLATTEN
+`, // FIXME: VectorToVector is used to not break script
+		GroupRight: `CLEAR
+$left DUP TYPEOF 'LIST' <% == %> <% 0 GET %> IFT LABELS 'left_labels'  STORE
+$right DUP TYPEOF 'LIST' <% == %> <% 0 GET %> IFT LABELS 'right_labels' STORE
+
+$left_labels <% 'value' STORE 'key' STORE  $value $key $right_labels SWAP GET <% == %> <% $right_labels $key REMOVE DROP 'right_labels' STORE  %> IFT %> FOREACH
+[ $right DUP TYPEOF <% 'GTS' == %> <% [ SWAP ] %> IFT [] $right_labels filter.bylabels ] FILTER
+$left 2 ->LIST FLATTEN
+`, // FIXME: VectorToVector is used to not break script
 	},
 	"unless": {
 		VectorToVector: `CLEAR
@@ -583,12 +766,28 @@ $left_labels <% 'value' STORE 'key' STORE  $value $key $right_labels SWAP GET <%
 [ $left $right 2 ->LIST FLATTEN [] $right_labels filter.bylabels ] FILTER
 $left 2 ->LIST FLATTEN
 `,
+		GroupLeft: `CLEAR
+$left DUP TYPEOF 'LIST' <% == %> <% 0 GET %> IFT LABELS 'left_labels'  STORE
+$right DUP TYPEOF 'LIST' <% == %> <% 0 GET %> IFT LABELS 'right_labels' STORE
+
+$left_labels <% 'value' STORE 'key' STORE  $value $key $right_labels SWAP GET <% == %> <% $right_labels $key REMOVE DROP 'right_labels' STORE  %> IFT %> FOREACH
+[ $left $right 2 ->LIST FLATTEN [] $right_labels filter.bylabels ] FILTER
+$left 2 ->LIST FLATTEN
+`, // FIXME: VectorToVector is used to not break script
+		GroupRight: `CLEAR
+$left DUP TYPEOF 'LIST' <% == %> <% 0 GET %> IFT LABELS 'left_labels'  STORE
+$right DUP TYPEOF 'LIST' <% == %> <% 0 GET %> IFT LABELS 'right_labels' STORE
+
+$left_labels <% 'value' STORE 'key' STORE  $value $key $right_labels SWAP GET <% == %> <% $right_labels $key REMOVE DROP 'right_labels' STORE  %> IFT %> FOREACH
+[ $left $right 2 ->LIST FLATTEN [] $right_labels filter.bylabels ] FILTER
+$left 2 ->LIST FLATTEN
+`, // FIXME: VectorToVector is used to not break script
 	},
 }
 
 // convertBinaryExpr is using binaryExprEquivalences to write the right warpscript according to the situation:
 // Binary arithmetic operators are defined between scalar/scalar, vector/scalar, scalar/vector, and vector/vector value pairs.
-func convertBinaryExpr(b *bytes.Buffer, op string, leftNodeType string, rightNodeType string) {
+func convertBinaryExpr(b *bytes.Buffer, op string, leftNodeType string, rightNodeType string, card string) {
 
 	switch {
 	case strings.Contains(leftNodeType, "NumberLiteralPayload") && strings.Contains(rightNodeType, "NumberLiteralPayload"):
@@ -600,7 +799,13 @@ func convertBinaryExpr(b *bytes.Buffer, op string, leftNodeType string, rightNod
 	case !strings.Contains(rightNodeType, "NumberLiteralPayload") && strings.Contains(leftNodeType, "NumberLiteralPayload"):
 		b.WriteString(binaryExprEquivalences[op].ScalarToVector)
 	case !strings.Contains(leftNodeType, "NumberLiteralPayload") && !strings.Contains(rightNodeType, "NumberLiteralPayload"):
-		b.WriteString(warpHashLabels + "\n" + binaryExprEquivalences[op].VectorToVector)
+		if card == "many-to-one" {
+			b.WriteString(warpHashLabels + "\n" + binaryExprEquivalences[op].GroupLeft)
+		} else if card == "one-to-many" {
+			b.WriteString(warpHashLabels + "\n" + binaryExprEquivalences[op].GroupRight)
+		} else {
+			b.WriteString(warpHashLabels + "\n" + binaryExprEquivalences[op].VectorToVector)
+		}
 	}
 }
 
@@ -790,8 +995,9 @@ $input 0 GET NaN NaN NaN $result
 %> 'reducer.histogram' STORE`
 
 var warpHashLabels = `<% 
+ []  'ignoringLabels' CSTORE
  [] 'l' STORE
- <% DUP LABELS ->JSON 'UTF-8' ->BYTES SHA1 ->HEX  'hash_945fa9bc3027d7025e3' SWAP 2 ->MAP RELABEL 1 ->LIST $l SWAP APPEND 'l' STORE %> FOREACH
+ <% DUP LABELS $ignoringLabels <% REMOVE DROP %> FOREACH ->JSON 'UTF-8' ->BYTES SHA1 ->HEX  'hash_945fa9bc3027d7025e3' SWAP 2 ->MAP RELABEL 1 ->LIST $l SWAP APPEND 'l' STORE %> FOREACH
  $l
 %> 'HASHLABELS' STORE`
 

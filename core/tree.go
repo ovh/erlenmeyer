@@ -84,7 +84,12 @@ type NumberLiteralPayload struct {
 
 // BinaryExprPayload is hodling an Op
 type BinaryExprPayload struct {
-	Op string
+	Op             string
+	IsOn           bool
+	IsIgnoring     bool
+	FilteredLabels []string
+	IncludeLabels  []string
+	Card           string
 }
 
 // FunctionPayload represents a function of the expression language and is
