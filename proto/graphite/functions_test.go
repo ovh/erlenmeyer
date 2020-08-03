@@ -107,7 +107,7 @@ var functionsTest = []functionTest{
 		ShouldContains: []string{
 			"MARK",
 			"COUNTTOMARK ->LIST SWAP DROP 'equivalenceClass' CSTORE",
-			"[ SWAP $equivalenceClass reducer.mean ] REDUCE",
+			"[ SWAP $equivalenceClass reducer.mean.exclude-nulls ] REDUCE",
 		},
 	},
 	{
@@ -119,7 +119,7 @@ var functionsTest = []functionTest{
 		ShouldContains: []string{
 			"MARK",
 			"COUNTTOMARK ->LIST SWAP DROP 'equivalenceClass' CSTORE",
-			"[ SWAP $equivalenceClass reducer.mean ] REDUCE",
+			"[ SWAP $equivalenceClass reducer.mean.exclude-nulls ] REDUCE",
 		},
 	},
 	{
@@ -143,7 +143,7 @@ var functionsTest = []functionTest{
 		ShouldContains: []string{
 			"MARK",
 			"COUNTTOMARK ->LIST SWAP DROP 'equivalenceClass' CSTORE",
-			"[ SWAP $equivalenceClass reducer.mean ] REDUCE",
+			"[ SWAP $equivalenceClass reducer.mean.exclude-nulls ] REDUCE",
 		},
 	},
 	{
@@ -155,7 +155,7 @@ var functionsTest = []functionTest{
 		ShouldContains: []string{
 			"MARK",
 			"COUNTTOMARK ->LIST SWAP DROP 'equivalenceClass' CSTORE",
-			"[ SWAP $equivalenceClass reducer.mean ] REDUCE",
+			"[ SWAP $equivalenceClass reducer.mean.exclude-nulls ] REDUCE",
 		},
 	},
 	{
