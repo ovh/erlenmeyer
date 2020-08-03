@@ -135,9 +135,14 @@ func summarize(node *core.Node, args []string, kwargs map[string]string) (*core.
 		return nil, err
 	}
 
-	op := "sum"
+	aggregator := "sum"
 	if len(args) >= 3 {
-		op = args[2]
+		aggregator = args[2]
+	}
+
+	op, ok := aggregateOperator[aggregator]
+	if !ok {
+		return nil, fmt.Errorf("The aggregator operator %s is not supported", aggregator)
 	}
 
 	kwargs["span"] = *t
