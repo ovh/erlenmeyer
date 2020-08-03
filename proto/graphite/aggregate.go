@@ -66,7 +66,13 @@ func aggregate(node *core.Node, args []string, kwargs map[string]string) (*core.
 	}
 
 	switch op {
-	case "mean", "median", "count", "sum", "min", "max", "product":
+	case "mean":
+		node.Left = core.NewNode(core.ReducerPayload{
+			Reducer: op + ".exclude-nulls",
+		})
+
+		node = node.Left
+	case "median", "count", "sum", "min", "max", "product":
 		node.Left = core.NewNode(core.ReducerPayload{
 			Reducer: op,
 		})
