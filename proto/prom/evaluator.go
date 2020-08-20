@@ -225,7 +225,7 @@ func (ev *evaluator) matrixSelector(selector *promql.MatrixSelector, node *core.
         DROP
         DUP LASTTICK 'lt' STORE
         DUP FIRSTTICK 'ft' STORE
-        [ SWAP bucketizer.last $lt 60 s $lt $ft - 60 s / TOLONG 1 + ] BUCKETIZE FILLPREVIOUS 0 GET
+        [ SWAP bucketizer.last $lt $step $lt $ft - $step / TOLONG 1 + ] BUCKETIZE FILLPREVIOUS 0 GET
         { 'splits_945fa9bc3027d7025e3' '' } RELABEL
     %>
     LMAP
@@ -371,7 +371,7 @@ func (ev *evaluator) vectorSelector(selector *promql.VectorSelector, node *core.
         DROP
         DUP LASTTICK 'lt' STORE
         DUP FIRSTTICK 'ft' STORE
-        [ SWAP bucketizer.last $lt 60 s $lt $ft - 60 s / TOLONG 1 + ] BUCKETIZE FILLPREVIOUS 0 GET
+        [ SWAP bucketizer.last $lt $step $lt $ft - $step / TOLONG 1 + ] BUCKETIZE FILLPREVIOUS 0 GET
         { 'splits_945fa9bc3027d7025e3' '' } RELABEL
     %>
     LMAP
