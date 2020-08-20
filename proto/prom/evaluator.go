@@ -26,7 +26,7 @@ func (ev *evaluator) GenerateInstantQueryTree(ctx Context) *core.Node {
 
 	ctx.IsInstant = true
 
-	ctx.Bucketizer = ""
+	ctx.Bucketizer = "bucketizer.last"
 	ev.eval(ctx.Expr, node, ctx)
 	return node
 }
@@ -321,6 +321,14 @@ func labelMatchersToMapLabels(matrixSelector ...*labels.Matcher) (string, bool, 
 func (ev *evaluator) vectorSelector(selector *promql.VectorSelector, node *core.Node, ctx Context) {
 
 	if ctx.IsInstant {
+		var bucketizePayload core.BucketizePayload
+		bucketizePayload.Op = "bucketizer.last"
+		bucketizePayload.LastBucket = fmt.Sprintf("%v000 ", ctx.End) + fmt.Sprintf("%v", selector.Offset.Nanoseconds()/1000) + " - "
+		bucketizePayload.BucketSpan = "0"
+		bucketizePayload.BucketCount = "1"
+
+		node.Payload = bucketizePayload
+
 		var fetchPayload core.FetchPayload
 		var setName string
 		var hasName bool
@@ -341,7 +349,10 @@ func (ev *evaluator) vectorSelector(selector *promql.VectorSelector, node *core.
 		if selector.Offset.String() != "0s" {
 			fetchPayload.Offset = fmt.Sprintf("%v", selector.Offset.Nanoseconds()/1000)
 		}
-		node.Payload = fetchPayload
+
+		node.Left = core.NewEmptyNode()
+		node.Left.Level = node.Level + 1
+		node.Left.Payload = fetchPayload
 
 	} else {
 

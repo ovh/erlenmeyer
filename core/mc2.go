@@ -140,7 +140,7 @@ func (n *Node) Write(b *bytes.Buffer) {
 		}
 
 		b.WriteString(" ] FETCH \n")
-		b.WriteString("DUP <% VALUES SIZE 0 == %> <% NEWGTS '" + p.ClassName + "' RENAME " + printLabelsAsWarpScriptHash(p.Labels) + " RELABEL 1 ->LIST APPEND %> IFT\n")
+		b.WriteString("DUP <% VALUES SIZE 0 == %> <% NEWGTS '" + p.ClassName + "' RENAME " + printLabelsAsWarpScriptHash(p.Labels) + " RELABEL 1 ->LIST APPEND STOP %> IFT\n")
 
 		if len(p.Offset) > 0 {
 			b.WriteString(p.Offset + " TIMESHIFT \n")
