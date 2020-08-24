@@ -140,7 +140,8 @@ func (n *Node) Write(b *bytes.Buffer) {
 		}
 
 		b.WriteString(" ] FETCH \n")
-		b.WriteString("DUP <% VALUES SIZE 0 == %> <% NEWGTS '" + p.ClassName + "' RENAME " + printLabelsAsWarpScriptHash(p.Labels) + " RELABEL 1 ->LIST APPEND STOP %> IFT\n")
+		b.WriteString("false 'empty' STORE \n")
+		b.WriteString("DUP <% VALUES SIZE 0 == %> <% NEWGTS '" + p.ClassName + "' RENAME " + printLabelsAsWarpScriptHash(p.Labels) + " RELABEL 1 ->LIST APPEND true 'empty' STORE %> IFT\n")
 
 		if len(p.Offset) > 0 {
 			b.WriteString(p.Offset + " TIMESHIFT \n")
@@ -172,6 +173,11 @@ func (n *Node) Write(b *bytes.Buffer) {
 			b.WriteString("FALSE RESETS\n")
 		}
 
+		if p.BucketCount == "1" && p.BucketSpan == "0" {
+			b.WriteString("<% $empty ! %>\n")
+			b.WriteString("<%\n")
+		}
+
 		if p.Absent {
 			b.WriteString(p.BucketRange + " [ SWAP " + p.Op + " " + p.LastBucket + " " + p.BucketSpan + " " + p.BucketCount + " 15 m " + p.BucketSpan + " / + ] BUCKETIZE\n")
 			b.WriteString("[ SWAP mapper.last 15 m $step / 0 $instant -1 * ] MAP\n")
@@ -181,6 +187,12 @@ func (n *Node) Write(b *bytes.Buffer) {
 			b.WriteString(p.BucketRange + " [ SWAP " + p.Op + " " + p.LastBucket + " " + p.BucketSpan + " " + p.BucketCount + " ] BUCKETIZE\n")
 			b.WriteString(p.Filler + "\n")
 		}
+
+		if p.BucketCount == "1" && p.BucketSpan == "0" {
+			b.WriteString("%>\n")
+			b.WriteString("IFT\n")
+		}
+
 		b.WriteString(p.BucketCount + " 'bucketCount' STORE\n")
 
 	case MapperPayload:
