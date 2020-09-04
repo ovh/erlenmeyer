@@ -42,6 +42,7 @@ type InfluxParser struct {
 func (p *InfluxParser) getSelectStatementScript(statement *influxql.SelectStatement, warpServer *core.HTTPWarp10Server, txn string, subqueryLevel int, statementid int) (string, *Result, map[string]bool, map[string]bool, error) {
 	selectValidField := make(map[string]bool)
 	selectTagsField := make(map[string]bool)
+	subselectFields := make(map[string]bool)
 
 	subQueries := make([]*influxql.SelectStatement, 0)
 
@@ -68,6 +69,7 @@ func (p *InfluxParser) getSelectStatementScript(statement *influxql.SelectStatem
 
 		prefix, resResp, subselectValidField, subselectTagsField, err := subQueryParser.getSelectStatementScript(subQuery, warpServer, txn, subqueryLevel+1, statementid)
 
+		subselectFields = subselectValidField
 		if resResp != nil {
 			if resResp.Err != "" {
 				return "", resResp, selectValidField, selectTagsField, nil
@@ -360,7 +362,14 @@ func (p *InfluxParser) getSelectStatementScript(statement *influxql.SelectStatem
 			wildCards := append(selectedField, ".INFLUXQL_COLUMN_NAME")
 			mc2 += removeAllLabels(wildCards)
 		} else if !starQuery {
-			mc2 += removeAllLabels(append(selectedField, p.KeepTopLabels...))
+			previousAliasKeys := make([]string, len(subselectFields)+len(p.KeepTopLabels))
+			for k := range subselectFields {
+				previousAliasKeys = append(previousAliasKeys, k)
+			}
+
+			previousAliasKeys = append(previousAliasKeys, p.KeepTopLabels...)
+
+			mc2 += removeAllLabels(append(selectedField, previousAliasKeys...))
 			mc2 += p.renameAndSetInfluxLabels()
 		} else {
 			mc2 += p.renameAndSetInfluxStarLabels()
