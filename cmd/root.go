@@ -116,6 +116,7 @@ var RootCmd = &cobra.Command{
 		// Enable custom middlewares
 		r.Use(middlewares.CORS())
 		r.Use(middlewares.Logger())
+
 		// Initialize Sentry
 		if sentryDSN != "" {
 			err := sentry.Init(sentry.ClientOptions{
