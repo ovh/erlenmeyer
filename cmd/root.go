@@ -8,8 +8,10 @@ import (
 	"os/signal"
 	"time"
 
-	"github.com/labstack/echo"
-	"github.com/labstack/echo/middleware"
+	"github.com/getsentry/sentry-go"
+	sentryecho "github.com/getsentry/sentry-go/echo"
+	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v4/middleware"
 	"github.com/ovh/erlenmeyer/middlewares"
 	"github.com/ovh/erlenmeyer/proto/graphite"
 	"github.com/ovh/erlenmeyer/proto/influxdb"
@@ -36,6 +38,9 @@ func init() {
 
 	// Listen (--listen) flag to so set the proxy listen URL
 	RootCmd.Flags().StringP("listen", "l", "127.0.0.1:8080", "listen address")
+
+	// Sentry (--sentry) flag to add a sentry integration to the project
+	RootCmd.Flags().StringP("sentry", "s", "", "sentry DSN")
 
 	// Bind persistent / local flags from cobra to viper
 	if err := viper.BindPFlags(RootCmd.PersistentFlags()); err != nil {
@@ -92,6 +97,7 @@ var RootCmd = &cobra.Command{
 		// Use echo router
 		r := echo.New()
 		addr := viper.GetString("listen")
+		sentryDSN := viper.GetString("sentry")
 
 		// Disable echo logger
 		r.Logger.SetOutput(ioutil.Discard)
@@ -110,6 +116,17 @@ var RootCmd = &cobra.Command{
 		// Enable custom middlewares
 		r.Use(middlewares.CORS())
 		r.Use(middlewares.Logger())
+		// Initialize Sentry
+		if sentryDSN != "" {
+			err := sentry.Init(sentry.ClientOptions{
+				Dsn: sentryDSN,
+			})
+			if err != nil {
+				log.Printf("Sentry initialization failed: %v\n", err)
+			} else {
+				r.Use(sentryecho.New(sentryecho.Options{}))
+			}
+		}
 
 		// Expose metrics on /metrics using prometheus
 		r.Any("/metrics", echo.WrapHandler(promhttp.Handler()))
