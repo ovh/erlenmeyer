@@ -3,6 +3,7 @@ package middlewares
 import (
 	"crypto/sha256"
 	"fmt"
+	"net/http"
 	"strconv"
 	"time"
 
@@ -14,6 +15,8 @@ import (
 const (
 	// TxnHeader allow to trace logs of a request
 	TxnHeader = "X-App-Txn"
+	// UnknownPath path label for all 404 answers (path not found)
+	UnknownPath = "unknown_path"
 )
 
 var (
@@ -44,13 +47,23 @@ var (
 		Name:      "response_time",
 		Help:      "Response time of the request in nanoseconds",
 	}, []string{"path"})
+
+	requestPathCounter = prometheus.NewCounterVec(prometheus.CounterOpts{
+		Namespace: "erlenmeyer",
+		Subsystem: "http",
+		Name:      "path_count",
+		Help:      "Number of http request handled per path",
+	}, []string{"path"})
 )
 
 func init() {
-	prometheus.MustRegister(requestCounter)
-	prometheus.MustRegister(requestErrorCounter)
-	prometheus.MustRegister(requestHTTPStatusCode)
-	prometheus.MustRegister(requestResponseTimeCounter)
+	prometheus.MustRegister(
+		requestCounter,
+		requestErrorCounter,
+		requestHTTPStatusCode,
+		requestResponseTimeCounter,
+		requestPathCounter,
+	)
 }
 
 func logger(c echo.Context, next echo.HandlerFunc) error {
@@ -95,6 +108,10 @@ func logger(c echo.Context, next echo.HandlerFunc) error {
 		"txn":        txn,
 	}).Info("Access")
 
+	if res.Status == http.StatusNotFound {
+		path = UnknownPath
+	}
+
 	requestCounter.Inc()
 	requestResponseTimeCounter.With(prometheus.Labels{
 		"path": path,
@@ -103,7 +120,8 @@ func logger(c echo.Context, next echo.HandlerFunc) error {
 		"status": strconv.Itoa(res.Status),
 	}).Inc()
 
-	if res.Status >= 300 {
+	// StatusMultipleChoices is 300 HTTP code
+	if res.Status >= http.StatusMultipleChoices {
 		requestErrorCounter.Inc()
 	}
 
