@@ -120,7 +120,8 @@ var RootCmd = &cobra.Command{
 		// Initialize Sentry
 		if sentryDSN != "" {
 			err := sentry.Init(sentry.ClientOptions{
-				Dsn: sentryDSN,
+				Dsn:     sentryDSN,
+				Release: version,
 			})
 			if err != nil {
 				log.Printf("Sentry initialization failed: %v\n", err)
