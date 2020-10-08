@@ -10,7 +10,7 @@ import (
 
 	"github.com/gogo/protobuf/proto"
 	"github.com/golang/snappy"
-	"github.com/labstack/echo"
+	"github.com/labstack/echo/v4"
 	"github.com/ovh/erlenmeyer/core"
 	"github.com/prometheus/prometheus/prompb"
 	"github.com/sirupsen/logrus"

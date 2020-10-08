@@ -3,7 +3,7 @@ package middlewares
 import (
 	"net/http"
 
-	"github.com/labstack/echo"
+	"github.com/labstack/echo/v4"
 )
 
 func cors(ctx echo.Context, next echo.HandlerFunc) error {
