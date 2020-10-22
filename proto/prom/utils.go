@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"fmt"
 	"regexp"
+	"strconv"
 	"strings"
 
 	"github.com/ovh/erlenmeyer/core"
@@ -33,14 +34,27 @@ func warpMetricstoPrometheus(gts core.GeoTimeSeries) prometheusResultResponse {
 	var p prometheusResultResponse
 	var v string
 
+	// skip Warp10 series name based on PromQL result
+	keepName := true
+	if removeName, ok := gts.Attrs[core.ShouldRemoveNameLabel]; ok {
+		skipName, err := strconv.ParseBool(removeName)
+		if err == nil && skipName {
+			keepName = false
+		}
+	}
+
 	p.Metric = gts.Labels
-	p.Metric["__name__"] = gts.Class
+
+	// use Warp10 series name for PromQL name
+	if keepName {
+		p.Metric["__name__"] = gts.Class
+	}
 
 	// Looping over values
 	for _, value := range gts.Values {
 		ts := value[0].(float64) // Casting as gts is an interface
 		ts /= 1000000.0          // Moving from us to ms
-		v = fmt.Sprintf("%f", value[1].(float64))
+		v = fmt.Sprintf("%v", value[1])
 
 		p.Values = append(p.Values, []interface{}{ts, v})
 	}

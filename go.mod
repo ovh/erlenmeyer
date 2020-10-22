@@ -5,11 +5,11 @@ go 1.12
 require (
 	github.com/Jamesxql/at v0.0.0-20171008114025-1bbb98306f3f
 	github.com/OneOfOne/xxhash v1.2.5 // indirect
+	github.com/apex/log v1.9.0 // indirect
 	github.com/beorn7/perks v0.0.0-20180321164747-3a771d992973 // indirect
 	github.com/cespare/xxhash v1.1.0 // indirect
 	github.com/getsentry/sentry-go v0.7.0
 	github.com/go-kit/kit v0.7.0
-	github.com/go-logfmt/logfmt v0.3.0 // indirect
 	github.com/go-stack/stack v1.7.0 // indirect
 	github.com/gogo/protobuf v1.2.1
 	github.com/golang/snappy v0.0.1
@@ -34,8 +34,6 @@ require (
 	github.com/spf13/cobra v0.0.5
 	github.com/spf13/viper v1.3.2
 	github.com/willf/pad v0.0.0-20160331131008-b3d780601022
-	golang.org/x/text v0.3.1-0.20181227161524-e6919f6577db // indirect
 	google.golang.org/genproto v0.0.0-20190404172233-64821d5d2107 // indirect
 	google.golang.org/grpc v1.19.1 // indirect
-	gopkg.in/check.v1 v1.0.0-20180628173108-788fd7840127 // indirect
 )

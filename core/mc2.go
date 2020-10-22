@@ -3,11 +3,15 @@ package core
 import (
 	"bytes"
 	"fmt"
+	"math"
 	"strconv"
 	"strings"
 
 	log "github.com/sirupsen/logrus"
 )
+
+// ShouldRemoveNameLabel WarpScript attribute key to remove name label
+const ShouldRemoveNameLabel = "SHOULD_REMOVE_NAME_LABEL"
 
 // ToWarpScriptWithTime translate a node to a WarpScript with start and end prefix
 func (n *Node) ToWarpScriptWithTime(token string, query string, step string, start Time, end Time) string {
@@ -42,8 +46,14 @@ func (n *Node) ToWarpScript(token string, query string, step string) string {
 	n.toWarpScript(&b)
 
 	// Adding footer
-	b.WriteString("\nDUP TYPEOF <% 'GTS' == %> <% [ SWAP ] %> IFT SORT\n")
-	b.WriteString("\nUNBUCKETIZE [ SWAP mapper.finite 0 0 0 ] MAP\n")
+	b.WriteString("\nDUP TYPEOF <% 'GTS' == %> <% [ SWAP ] %> IFT \n")
+
+	b.WriteString("\nDUP TYPEOF <% 'LIST' != %> <% \n")
+	b.WriteString("\t 'gts_values' STORE NEWGTS $start NaN NaN NaN $gts_values ADDVALUE $end NaN NaN NaN $gts_values ADDVALUE \n")
+	b.WriteString("\t [ SWAP bucketizer.last $end $step 0 ] BUCKETIZE FILLPREVIOUS FILLNEXT \n")
+	b.WriteString("\t { '" + ShouldRemoveNameLabel + "' 'true' } SETATTRIBUTES \n")
+	b.WriteString("%> IFT \n")
+	b.WriteString("\nSORT UNBUCKETIZE [ SWAP mapper.finite 0 0 0 ] MAP\n")
 
 	return b.String()
 }
@@ -376,7 +386,7 @@ func (n *Node) Write(b *bytes.Buffer) {
 			b.WriteString(" [ SWAP bucketizer.mean $end $step $instant ] BUCKETIZE INTERPOLATE SORT\n")
 			b.WriteString(" [ SWAP mapper.tick 0 0 0 ] MAP [ SWAP 0.000001 mapper.mul 0 0 0 ] MAP \n")
 		case "timestamp":
-			b.WriteString("[ SWAP mapper.tick 0 0 0 ] MAP\n")
+			b.WriteString(" UNBUCKETIZE [ SWAP mapper.tick 0 0 0 ] MAP\n")
 		case "vector":
 			b.WriteString("'scalar' STORE  <% $scalar TYPEOF 'LIST' != %> <% [ $start $end ] [] [] [] [ $scalar ] MAKEGTS  'vector' RENAME [ SWAP bucketizer.mean $end $step $instant ] BUCKETIZE INTERPOLATE SORT %> <% $scalar <% DROP 'vector' RENAME %> LMAP %> IFTE\n")
 		case "year":
@@ -410,7 +420,16 @@ func (n *Node) Write(b *bytes.Buffer) {
 		convertBinaryExpr(b, p.Op, leftNodeType, rightNodeType, p.Card)
 
 	case NumberLiteralPayload:
-		b.WriteString(fmt.Sprintf(" %s ", p.Value))
+		switch p.Value {
+		case fmt.Sprintf("%v", math.Inf(1)):
+			b.WriteString(fmt.Sprintf(" '%s' ", p.Value))
+		case fmt.Sprintf("%v", math.Inf(-1)):
+			b.WriteString(fmt.Sprintf(" '%s' ", p.Value))
+		case "NaN":
+			b.WriteString(fmt.Sprintf(" '%s' ", p.Value))
+		default:
+			b.WriteString(fmt.Sprintf(" %s ", p.Value))
+		}
 
 	default:
 		panic(fmt.Sprintf("Type %T is not handled", n.Payload))
@@ -440,8 +459,8 @@ var simpleSupportedAggregator = map[string]string{
 	"min":      "reducer.min",
 	"max":      "reducer.max",
 	"avg":      "reducer.mean.exclude-nulls",
-	"stddev":   "reducer.sd",
-	"stdvar":   "reducer.var",
+	"stddev":   "true reducer.sd",
+	"stdvar":   "true reducer.var",
 	"count":    "reducer.count.exclude-nulls",
 	"quantile": "reducer.percentile",
 }

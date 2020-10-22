@@ -365,7 +365,7 @@ var tests = []testStruct{
 	{
 		Query: `stddev(http_requests_total)`,
 		ShouldContains: []string{
-			"[ SWAP [ ] DUP 'equivalenceClass' STORE reducer.sd ] REDUCE"},
+			"[ SWAP [ ] DUP 'equivalenceClass' STORE true reducer.sd ] REDUCE"},
 	},
 	{
 		Query: `stdvar(http_requests_total)`,

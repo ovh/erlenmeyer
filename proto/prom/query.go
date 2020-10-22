@@ -7,7 +7,6 @@ import (
 	"io/ioutil"
 	"net/http"
 	"net/http/httputil"
-	"strings"
 
 	"github.com/ovh/erlenmeyer/core"
 	"github.com/ovh/erlenmeyer/middlewares"
@@ -239,9 +238,7 @@ func (p *QL) QueryRange(w http.ResponseWriter, r *http.Request) {
 		respondWithError(w, err, http.StatusServiceUnavailable)
 		return
 	}
-	// HACK : replace NaN values from Warp to 0
-	s := strings.Replace(string(buffer), "NaN", "0", -1)
-	buffer = []byte(s)
+	buffer = []byte(string(buffer))
 
 	responses := [][]core.GeoTimeSeries{}
 	err = json.Unmarshal(buffer, &responses)
