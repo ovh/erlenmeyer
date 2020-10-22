@@ -53,7 +53,7 @@ func (n *Node) ToWarpScript(token string, query string, step string) string {
 	b.WriteString("\t [ SWAP bucketizer.last $end $step 0 ] BUCKETIZE FILLPREVIOUS FILLNEXT \n")
 	b.WriteString("\t { '" + ShouldRemoveNameLabel + "' 'true' } SETATTRIBUTES \n")
 	b.WriteString("%> IFT \n")
-	b.WriteString("\nSORT UNBUCKETIZE [ SWAP mapper.finite 0 0 0 ] MAP\n")
+	b.WriteString("\nNONEMPTY SORT UNBUCKETIZE [ SWAP mapper.finite 0 0 0 ] MAP\n")
 
 	return b.String()
 }
@@ -189,12 +189,12 @@ func (n *Node) Write(b *bytes.Buffer) {
 		}
 
 		if p.Absent {
-			b.WriteString(p.BucketRange + " [ SWAP " + p.Op + " " + p.LastBucket + " " + p.BucketSpan + " " + p.BucketCount + " 15 m " + p.BucketSpan + " / + ] BUCKETIZE\n")
+			b.WriteString(p.BucketRange + " [ SWAP " + p.Op + " " + p.LastBucket + " " + p.BucketSpan + " " + p.BucketCount + " 2 - 15 m " + p.BucketSpan + " / + ] BUCKETIZE\n")
 			b.WriteString("[ SWAP mapper.last 15 m $step / 0 $instant -1 * ] MAP\n")
-			b.WriteString(p.BucketRange + " [ SWAP " + p.Op + " " + p.LastBucket + " " + p.BucketSpan + " " + p.BucketCount + " ] BUCKETIZE\n")
+			b.WriteString(p.BucketRange + " [ SWAP " + p.Op + " " + p.LastBucket + " " + p.BucketSpan + " " + p.BucketCount + " 2 - ] BUCKETIZE\n")
 		} else {
 			b.WriteString(p.PreBucketize + "\n")
-			b.WriteString(p.BucketRange + " [ SWAP " + p.Op + " " + p.LastBucket + " " + p.BucketSpan + " " + p.BucketCount + " ] BUCKETIZE\n")
+			b.WriteString(p.BucketRange + " [ SWAP " + p.Op + " " + p.LastBucket + " " + p.BucketSpan + " " + p.BucketCount + " 2 - ] BUCKETIZE\n")
 			b.WriteString(p.Filler + "\n")
 		}
 

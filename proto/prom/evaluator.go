@@ -219,13 +219,19 @@ func (ev *evaluator) matrixSelector(selector *promql.MatrixSelector, node *core.
 	bucketizePayload.PreBucketize = `
 <%
 	DROP 
-	` + viper.GetString("prometheus.fillprevious.period") + `
+	` + viper.GetString("prometheus.fillprevious.period") + ` DUP 'FILL_PREVIOUS_PERIOD' STORE
     1 'splits_945fa9bc3027d7025e3' TIMESPLIT 
     <% 
         DROP
-        DUP LASTTICK 'lt' STORE
-        DUP FIRSTTICK 'ft' STORE
-        [ SWAP bucketizer.last $lt $step $lt $ft - $step / TOLONG 1 + ] BUCKETIZE FILLPREVIOUS 0 GET
+		DUP LASTTICK 'lt' STORE
+		<%
+            $lt $end $FILL_PREVIOUS_PERIOD - <=
+        %>
+        <%
+        	DUP FIRSTTICK 'ft' STORE
+			[ SWAP bucketizer.last $lt $step $lt $ft - $step / TOLONG 1 + ] BUCKETIZE FILLPREVIOUS 0 GET
+		%>
+		IFT
         { 'splits_945fa9bc3027d7025e3' '' } RELABEL
     %>
     LMAP
@@ -365,13 +371,19 @@ func (ev *evaluator) vectorSelector(selector *promql.VectorSelector, node *core.
 		bucketizePayload.PreBucketize = `
 <%
 	DROP 
-	` + viper.GetString("prometheus.fillprevious.period") + `
+	` + viper.GetString("prometheus.fillprevious.period") + ` DUP 'FILL_PREVIOUS_PERIOD' STORE
     1 'splits_945fa9bc3027d7025e3' TIMESPLIT 
     <% 
         DROP
-        DUP LASTTICK 'lt' STORE
-        DUP FIRSTTICK 'ft' STORE
-        [ SWAP bucketizer.last $lt $step $lt $ft - $step / TOLONG 1 + ] BUCKETIZE FILLPREVIOUS 0 GET
+		DUP LASTTICK 'lt' STORE
+		<%
+            $lt $end $FILL_PREVIOUS_PERIOD - <=
+        %>
+        <%
+        	DUP FIRSTTICK 'ft' STORE
+			[ SWAP bucketizer.last $lt $step $lt $ft - $step / TOLONG 1 + ] BUCKETIZE FILLPREVIOUS 0 GET
+		%>
+		IFT
         { 'splits_945fa9bc3027d7025e3' '' } RELABEL
     %>
     LMAP
