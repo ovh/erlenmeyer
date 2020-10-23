@@ -512,7 +512,6 @@ func convertAggregate(b *bytes.Buffer, p AggregatePayload) {
 		case "topk":
 			b.WriteString("<% [ SWAP bucketizer.mean 0 0 1 ] BUCKETIZE VALUES 0 GET 0 GET %> SORTBY REVERSE [ 0 " + p.Param + " 1 - ] SUBLIST\n")
 		case "bottomk":
-			b.WriteString("[ SWAP bucketizer.min 0 0 1 ] BUCKETIZE\n")
 			b.WriteString("<% [ SWAP bucketizer.mean 0 0 1 ] BUCKETIZE VALUES 0 GET 0 GET %> SORTBY [ 0 " + p.Param + " 1 - ] SUBLIST\n")
 		default:
 			log.Errorf("Aggregator not supported: %s", p.Op)
