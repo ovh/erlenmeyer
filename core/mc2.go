@@ -459,8 +459,8 @@ var simpleSupportedAggregator = map[string]string{
 	"min":      "reducer.min",
 	"max":      "reducer.max",
 	"avg":      "reducer.mean.exclude-nulls",
-	"stddev":   "true reducer.sd",
-	"stdvar":   "true reducer.var",
+	"stddev":   "false reducer.sd",
+	"stdvar":   "false reducer.var",
 	"count":    "reducer.count.exclude-nulls",
 	"quantile": "reducer.percentile",
 }
@@ -500,6 +500,7 @@ func convertAggregate(b *bytes.Buffer, p AggregatePayload) {
 		b.WriteString(" ] REDUCE\n")
 		// Keep only labels in the equivalence class like does promQL
 		b.WriteString("MARK SWAP  <%  DUP LABELS { } SWAP  <% 'v' STORE 'k' STORE <% $equivalenceClass $k CONTAINS %> <%  DROP { $k $v } APPEND  %> <% DROP %> IFTE %> FOREACH SWAP { NULL NULL } RELABEL SWAP RELABEL %> FOREACH COUNTTOMARK ->LIST SWAP DROP\n")
+		b.WriteString("\t { '" + ShouldRemoveNameLabel + "' 'true' } SETATTRIBUTES \n")
 	} else {
 		// Advanced reduction
 		switch p.Op {
