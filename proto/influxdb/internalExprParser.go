@@ -90,6 +90,8 @@ func (p *InfluxParser) parseExpr(getExpr influxql.Expr, level int, selectors []s
 		mc2 += fetch
 	case *influxql.IntegerLiteral:
 		return fmt.Sprintf(" %d ", expr.Val), Scalar, nil
+	case *influxql.NumberLiteral:
+		return fmt.Sprintf(" %f ", expr.Val), Scalar, nil
 	default:
 		log.Warnf("Parse expr %s : %T", expr.String(), expr)
 	}
