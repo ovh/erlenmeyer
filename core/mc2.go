@@ -471,7 +471,6 @@ func convertAggregate(b *bytes.Buffer, p AggregatePayload) {
 	// Filtering using without
 	if p.Without && len(p.Grouping) > 0 {
 		b.WriteString(getMacroFilterAggregate(p.Grouping))
-		b.WriteString("[ SWAP $equivalenceClass reducer.sum ] REDUCE\n")
 	}
 
 	if reducer, ok := simpleSupportedAggregator[p.Op]; ok {
@@ -488,6 +487,8 @@ func convertAggregate(b *bytes.Buffer, p AggregatePayload) {
 
 		if p.Without && len(p.Grouping) > 0 {
 			b.WriteString("] DROP $equivalenceClass ")
+		} else if p.Without && len(p.Grouping) == 0 {
+			b.WriteString("] DROP NULL [] 'equivalenceClass' STORE ")
 		} else {
 			b.WriteString("] DUP 'equivalenceClass' STORE ")
 		}
@@ -498,8 +499,13 @@ func convertAggregate(b *bytes.Buffer, p AggregatePayload) {
 
 		b.WriteString(reducer)
 		b.WriteString(" ] REDUCE\n")
-		// Keep only labels in the equivalence class like does promQL
-		b.WriteString("MARK SWAP  <%  DUP LABELS { } SWAP  <% 'v' STORE 'k' STORE <% $equivalenceClass $k CONTAINS %> <%  DROP { $k $v } APPEND  %> <% DROP %> IFTE %> FOREACH SWAP { NULL NULL } RELABEL SWAP RELABEL %> FOREACH COUNTTOMARK ->LIST SWAP DROP\n")
+
+		// When Without is set and grouping equals 0 skip labels refactoring
+		if !(p.Without && len(p.Grouping) == 0) {
+			// Keep only labels in the equivalence class like does promQL
+			b.WriteString("MARK SWAP  <%  DUP LABELS { } SWAP  <% 'v' STORE 'k' STORE <% $equivalenceClass $k CONTAINS %> <%  DROP { $k $v } APPEND  %> <% DROP %> IFTE %> FOREACH SWAP { NULL NULL } RELABEL SWAP RELABEL %> FOREACH COUNTTOMARK ->LIST SWAP DROP\n")
+		}
+		// Set a Warp10 attribute to indicate that the series name should be removed
 		b.WriteString("\t { '" + ShouldRemoveNameLabel + "' 'true' } SETATTRIBUTES \n")
 	} else {
 		// Advanced reduction
