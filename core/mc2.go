@@ -450,8 +450,8 @@ RELABEL
 LMAP
 ` + "\n"
 
-func getMacroFilterAggregate(labels []string) string {
-	return printLabelsAsWarpScriptMaps(labels) + macroFilterAggregateFooter
+func getMacroFilterAggregate(labels []string, suffix string) string {
+	return printLabelsAsWarpScriptMaps(labels) + "\n" + suffix + "\n" + macroFilterAggregateFooter
 }
 
 var simpleSupportedAggregator = map[string]string{
@@ -470,7 +470,11 @@ var simpleSupportedAggregator = map[string]string{
 func convertAggregate(b *bytes.Buffer, p AggregatePayload) {
 	// Filtering using without
 	if p.Without && len(p.Grouping) > 0 {
-		b.WriteString(getMacroFilterAggregate(p.Grouping))
+		suffix := ""
+		if p.Op == "topk" || p.Op == "bottomk" {
+			suffix = "DROP {} \n"
+		}
+		b.WriteString(getMacroFilterAggregate(p.Grouping, suffix))
 	}
 
 	if reducer, ok := simpleSupportedAggregator[p.Op]; ok {
@@ -515,10 +519,34 @@ func convertAggregate(b *bytes.Buffer, p AggregatePayload) {
 			b.WriteString("[ SWAP bucketizer.count 0 0 1 ] BUCKETIZE\n")
 			b.WriteString("[ SWAP [ " + p.Param + " ] reducer.sum ] REDUCE\n")
 			b.WriteString("[ SWAP bucketizer.sum 0 0 1 ] BUCKETIZE\n")
-		case "topk":
-			b.WriteString("<% [ SWAP bucketizer.mean 0 0 1 ] BUCKETIZE VALUES 0 GET 0 GET %> SORTBY REVERSE [ 0 " + p.Param + " 1 - ] SUBLIST\n")
-		case "bottomk":
-			b.WriteString("<% [ SWAP bucketizer.mean 0 0 1 ] BUCKETIZE VALUES 0 GET 0 GET %> SORTBY [ 0 " + p.Param + " 1 - ] SUBLIST\n")
+		case "topk", "bottomk":
+			sortSuffix := ""
+			if p.Op == "topk" {
+				sortSuffix = "REVERSE"
+			}
+			if len(p.Grouping) > 0 || (p.Without && len(p.Grouping) == 0) {
+				if p.Without && len(p.Grouping) == 0 {
+					b.WriteString("NULL PARTITION [] SWAP \n")
+				} else if p.Without && len(p.Grouping) > 0 {
+					b.WriteString("DUP <% DROP LABELS \n")
+					for _, labelKey := range p.Grouping {
+						b.WriteString("'" + labelKey + "' REMOVE DROP \n")
+					}
+					b.WriteString("KEYLIST %> LMAP FLATTEN UNIQUE \n")
+					b.WriteString("PARTITION [] SWAP \n")
+				} else {
+					b.WriteString("[ " + printLabelsAsWarpScriptList(p.Grouping) + " ] PARTITION [] SWAP \n")
+				}
+				b.WriteString("<% \n")
+				b.WriteString("\t SWAP DROP \n")
+				b.WriteString("\t ")
+			}
+			b.WriteString("<% [ SWAP bucketizer.mean 0 0 1 ] BUCKETIZE VALUES 0 GET 0 GET %> SORTBY " + sortSuffix + " [ 0 " + p.Param + " 1 - ] SUBLIST \n")
+			if len(p.Grouping) > 0 || (p.Without && len(p.Grouping) == 0) {
+
+				b.WriteString("\t + \n")
+				b.WriteString("%> FOREACH FLATTEN \n")
+			}
 		default:
 			log.Errorf("Aggregator not supported: %s", p.Op)
 		}
