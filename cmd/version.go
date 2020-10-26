@@ -8,7 +8,7 @@ import (
 )
 
 var (
-	version   = "1.4.2"
+	version   = "1.4.3-preview"
 	githash   = "HEAD"
 	gitbranch = "master"
 	date      = "1970-01-01T00:00:00Z UTC"
