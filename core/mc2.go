@@ -373,7 +373,7 @@ func (n *Node) Write(b *bytes.Buffer) {
 			b.WriteString("UNBUCKETIZE [ SWAP mapper.round 0 0 0 ] MAP\n")
 		case "scalar":
 			b.WriteString("DUP SIZE <% 1 == %> <% VALUES 0 GET 0 GET %> <% DROP NaN %> IFTE\n")
-			b.WriteString(" 'value' STORE [ $start $end ] [] [] [] [ $value DUP ] MAKEGTS 'scalar' RENAME\n")
+			b.WriteString(" 'value' STORE [ $start $end ] [] [] [] [ $value DUP ] { '" + ShouldRemoveNameLabel + "' 'true' } SETATTRIBUTES MAKEGTS 'scalar' RENAME\n")
 			b.WriteString(" [ SWAP bucketizer.mean $end $step $instant ] BUCKETIZE INTERPOLATE SORT\n")
 		case "sort":
 			b.WriteString("<% [ SWAP bucketizer.mean 0 0 1 ] BUCKETIZE VALUES 0 GET 0 GET %> SORTBY\n")
@@ -382,7 +382,7 @@ func (n *Node) Write(b *bytes.Buffer) {
 		case "sqrt":
 			b.WriteString("[ SWAP mapper.sqrt 0 0 0 ] MAP\n")
 		case "time":
-			b.WriteString(" [ $start $end ] [] [] [] [ 1 DUP ] MAKEGTS 'scalar' RENAME\n")
+			b.WriteString(" [ $start $end ] [] [] [] [ 1 DUP ] { '" + ShouldRemoveNameLabel + "' 'true' } SETATTRIBUTES  MAKEGTS 'scalar' RENAME\n")
 			b.WriteString(" [ SWAP bucketizer.mean $end $step $instant ] BUCKETIZE INTERPOLATE SORT\n")
 			b.WriteString(" [ SWAP mapper.tick 0 0 0 ] MAP [ SWAP 0.000001 mapper.mul 0 0 0 ] MAP \n")
 		case "timestamp":
@@ -428,7 +428,7 @@ func (n *Node) Write(b *bytes.Buffer) {
 		case "NaN":
 			b.WriteString(fmt.Sprintf(" '%s' ", p.Value))
 		default:
-			b.WriteString(fmt.Sprintf(" %s ", p.Value))
+			b.WriteString(fmt.Sprintf(" %s TODOUBLE ", p.Value))
 		}
 
 	default:
@@ -718,7 +718,7 @@ var binaryExprEquivalences = map[string]binaryExprEquivalence{
 	"%": {
 		ScalarToScalar: " % ",
 		VectorToScalar: NewSimpleMacroMapper("$right %"),
-		ScalarToVector: NewSimpleMacroMapper("$left %"),
+		ScalarToVector: NewSimpleMacroMapper("$left SWAP %"),
 		VectorToVector: "'modulo across GTS not supported' MSGFAIL\n", // FIXME:
 		GroupLeft:      "'modulo across GTS not supported' MSGFAIL\n", // FIXME:
 		GroupRight:     "'modulo across GTS not supported' MSGFAIL\n", // FIXME:
@@ -857,7 +857,7 @@ func convertBinaryExpr(b *bytes.Buffer, op string, leftNodeType string, rightNod
 	switch {
 	case strings.Contains(leftNodeType, "NumberLiteralPayload") && strings.Contains(rightNodeType, "NumberLiteralPayload"):
 		b.WriteString(binaryExprEquivalences[op].ScalarToScalar)
-		b.WriteString(" 'value' STORE [ $start $end ] [] [] [] [ $value DUP ] MAKEGTS 'scalar' RENAME\n")
+		b.WriteString(" 'value' STORE [ $start $end ] [] [] [] [ $value DUP ] MAKEGTS { '" + ShouldRemoveNameLabel + "' 'true' } SETATTRIBUTES 'scalar' RENAME\n")
 		b.WriteString(" [ SWAP bucketizer.mean $end $step $instant ] BUCKETIZE INTERPOLATE SORT \n")
 	case !strings.Contains(leftNodeType, "NumberLiteralPayload") && strings.Contains(rightNodeType, "NumberLiteralPayload"):
 		b.WriteString(binaryExprEquivalences[op].VectorToScalar)
@@ -869,7 +869,10 @@ func convertBinaryExpr(b *bytes.Buffer, op string, leftNodeType string, rightNod
 		} else if card == "one-to-many" {
 			b.WriteString(warpHashLabels + "\n" + binaryExprEquivalences[op].GroupRight)
 		} else {
+			b.WriteString("true 'shouldRemoveName' STORE \n")
+			b.WriteString("DUP <% <% <% ATTRIBUTES 'SHOULD_REMOVE_NAME_LABEL' CONTAINSKEY %> <% 'SHOULD_REMOVE_NAME_LABEL' GET TOBOOLEAN $shouldRemoveName && 'shouldRemoveName' STORE %> <% DROP %> IFTE %> FOREACH %> FOREACH \n")
 			b.WriteString(warpHashLabels + "\n" + binaryExprEquivalences[op].VectorToVector)
+			b.WriteString("<% $shouldRemoveName %> <% { 'SHOULD_REMOVE_NAME_LABEL' 'true' } SETATTRIBUTES  %> IFT \n")
 		}
 	}
 }
