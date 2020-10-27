@@ -717,8 +717,8 @@ var binaryExprEquivalences = map[string]binaryExprEquivalence{
 	},
 	"%": {
 		ScalarToScalar: " % ",
-		VectorToScalar: NewSimpleMacroMapper("$right %"),
-		ScalarToVector: NewSimpleMacroMapper("$left SWAP %"),
+		VectorToScalar: NewSimpleMacroMapper("TODOUBLE $right TODOUBLE %"),
+		ScalarToVector: NewSimpleMacroMapper("TODOUBLE $left TODOUBLE SWAP %"),
 		VectorToVector: "'modulo across GTS not supported' MSGFAIL\n", // FIXME:
 		GroupLeft:      "'modulo across GTS not supported' MSGFAIL\n", // FIXME:
 		GroupRight:     "'modulo across GTS not supported' MSGFAIL\n", // FIXME:
@@ -857,12 +857,18 @@ func convertBinaryExpr(b *bytes.Buffer, op string, leftNodeType string, rightNod
 	switch {
 	case strings.Contains(leftNodeType, "NumberLiteralPayload") && strings.Contains(rightNodeType, "NumberLiteralPayload"):
 		b.WriteString(binaryExprEquivalences[op].ScalarToScalar)
-		b.WriteString(" 'value' STORE [ $start $end ] [] [] [] [ $value DUP ] MAKEGTS { '" + ShouldRemoveNameLabel + "' 'true' } SETATTRIBUTES 'scalar' RENAME\n")
+		b.WriteString(" TODOUBLE 'value' STORE [ $start $end ] [] [] [] [ $value DUP ] MAKEGTS { '" + ShouldRemoveNameLabel + "' 'true' } SETATTRIBUTES 'scalar' RENAME\n")
 		b.WriteString(" [ SWAP bucketizer.mean $end $step $instant ] BUCKETIZE INTERPOLATE SORT \n")
 	case !strings.Contains(leftNodeType, "NumberLiteralPayload") && strings.Contains(rightNodeType, "NumberLiteralPayload"):
 		b.WriteString(binaryExprEquivalences[op].VectorToScalar)
+		switch op {
+		case "!=", ">", ">=", "<=", "<", "==":
+		default:
+			b.WriteString("{ 'SHOULD_REMOVE_NAME_LABEL' 'true' } SETATTRIBUTES \n")
+		}
 	case !strings.Contains(rightNodeType, "NumberLiteralPayload") && strings.Contains(leftNodeType, "NumberLiteralPayload"):
 		b.WriteString(binaryExprEquivalences[op].ScalarToVector)
+		b.WriteString("{ 'SHOULD_REMOVE_NAME_LABEL' 'true' } SETATTRIBUTES \n")
 	case !strings.Contains(leftNodeType, "NumberLiteralPayload") && !strings.Contains(rightNodeType, "NumberLiteralPayload"):
 		if card == "many-to-one" {
 			b.WriteString(warpHashLabels + "\n" + binaryExprEquivalences[op].GroupLeft)
