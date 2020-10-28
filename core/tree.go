@@ -90,6 +90,7 @@ type BinaryExprPayload struct {
 	FilteredLabels []string
 	IncludeLabels  []string
 	Card           string
+	ReturnBool     bool
 }
 
 // FunctionPayload represents a function of the expression language and is

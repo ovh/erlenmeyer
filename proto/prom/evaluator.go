@@ -70,6 +70,7 @@ func (ev *evaluator) eval(expr promql.Expr, node *core.Node, ctx Context) {
 			Op:             fmt.Sprintf("%+v", e.Op),
 			FilteredLabels: make([]string, 0),
 			IncludeLabels:  make([]string, 0),
+			ReturnBool:     e.ReturnBool,
 		}
 
 		if vm != nil {
@@ -80,6 +81,7 @@ func (ev *evaluator) eval(expr promql.Expr, node *core.Node, ctx Context) {
 				FilteredLabels: vm.MatchingLabels,
 				IncludeLabels:  vm.Include,
 				Card:           vm.Card.String(),
+				ReturnBool:     e.ReturnBool,
 			}
 		}
 

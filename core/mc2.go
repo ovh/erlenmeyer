@@ -418,6 +418,11 @@ func (n *Node) Write(b *bytes.Buffer) {
 			b.WriteString(" [ '" + strings.Join(p.IncludeLabels, "' '") + "' ] 'include_labels' STORE \n")
 		}
 		convertBinaryExpr(b, p.Op, leftNodeType, rightNodeType, p.Card)
+		if p.ReturnBool {
+			b.WriteString(" [ NaN NaN NaN 0 ] FILLVALUE UNBUCKETIZE [ SWAP mapper.toboolean 0 0 0 ] MAP [ SWAP mapper.todouble 0 0 0 ] MAP  \n")
+			b.WriteString("{ '" + ShouldRemoveNameLabel + "' 'true' } SETATTRIBUTES \n")
+		}
+		b.WriteString("NONEMPTY \n")
 
 	case NumberLiteralPayload:
 		switch p.Value {
@@ -629,7 +634,7 @@ func groupOnPer(side, operator string, addLeftSuffix bool) string {
 	   FOREACH
    %>
    LMAP
-   FLATTEN NONEMPTY { 'hash_945fa9bc3027d7025e3' '' } RELABEL
+   FLATTEN { 'hash_945fa9bc3027d7025e3' '' } RELABEL
 `
 	return mc2
 }
@@ -677,7 +682,7 @@ func getComparatorScript(operator string) string {
 			] APPLY 
 		%> IFTE
 	%> LMAP 
-	FLATTEN NONEMPTY { 'hash_945fa9bc3027d7025e3' '' } RELABEL
+	FLATTEN { 'hash_945fa9bc3027d7025e3' '' } RELABEL
 	`
 	return mc2
 }
@@ -687,7 +692,7 @@ var binaryExprEquivalences = map[string]binaryExprEquivalence{
 		ScalarToScalar: " + ",
 		VectorToScalar: "[ SWAP $right TODOUBLE mapper.add 0 0 0 ] MAP\n",
 		ScalarToVector: "[ SWAP $left TODOUBLE mapper.add 0 0 0 ] MAP\n",
-		VectorToVector: "[ SWAP  DUP 0 GET @HASHLABELS SWAP 1 GET @HASHLABELS $hashlabel op.add ]  APPLY NONEMPTY { 'hash_945fa9bc3027d7025e3' '' } RELABEL \n",
+		VectorToVector: "[ SWAP  DUP 0 GET @HASHLABELS SWAP 1 GET @HASHLABELS $hashlabel op.add ]  APPLY { 'hash_945fa9bc3027d7025e3' '' } RELABEL \n",
 		GroupLeft:      groupOnPer("$left", "op.add", false),
 		GroupRight:     groupOnPer("$right", "op.add", false),
 	},
@@ -695,7 +700,7 @@ var binaryExprEquivalences = map[string]binaryExprEquivalence{
 		ScalarToScalar: " - ",
 		VectorToScalar: "[ SWAP 0 $right TODOUBLE - mapper.add 0 0 0 ] MAP\n",
 		ScalarToVector: "[ SWAP [ SWAP -1 mapper.mul 0 0 0 ] MAP $left TODOUBLE mapper.add 0 0 0 ] MAP\n",
-		VectorToVector: "[ SWAP  DUP 0 GET @HASHLABELS '%2B.tosub' RENAME SWAP 1 GET @HASHLABELS $hashlabel op.sub ]  APPLY NONEMPTY { 'hash_945fa9bc3027d7025e3' '' } RELABEL \n",
+		VectorToVector: "[ SWAP  DUP 0 GET @HASHLABELS '%2B.tosub' RENAME SWAP 1 GET @HASHLABELS $hashlabel op.sub ]  APPLY { 'hash_945fa9bc3027d7025e3' '' } RELABEL \n",
 		GroupLeft:      groupOnPer("$left", "op.sub", true),
 		GroupRight:     groupOnPer("$right", "op.sub", true),
 	},
@@ -703,15 +708,15 @@ var binaryExprEquivalences = map[string]binaryExprEquivalence{
 		ScalarToScalar: " * ",
 		VectorToScalar: "[ SWAP $right TODOUBLE mapper.mul 0 0 0 ] MAP\n",
 		ScalarToVector: "[ SWAP $left TODOUBLE mapper.mul 0 0 0 ] MAP\n",
-		VectorToVector: "[ SWAP  DUP 0 GET @HASHLABELS SWAP 1 GET @HASHLABELS $hashlabel op.mul ]  APPLY NONEMPTY { 'hash_945fa9bc3027d7025e3' '' } RELABEL \n",
+		VectorToVector: "[ SWAP  DUP 0 GET @HASHLABELS SWAP 1 GET @HASHLABELS $hashlabel op.mul ]  APPLY { 'hash_945fa9bc3027d7025e3' '' } RELABEL \n",
 		GroupLeft:      groupOnPer("$left", "op.mul", false),
 		GroupRight:     groupOnPer("$right", "op.mul", false),
 	},
 	"/": {
 		ScalarToScalar: " / ",
 		VectorToScalar: "[ SWAP 1 $right TODOUBLE / mapper.mul 0 0 0 ] MAP\n",
-		ScalarToVector: warpHashLabels + " [ SWAP @HASHLABELS DUP [ SWAP $left mapper.replace 0 0 0 ] MAP SWAP @HASHLABELS $hashlabel op.div ]  APPLY NONEMPTY { 'hash_945fa9bc3027d7025e3' '' } RELABEL\n",
-		VectorToVector: "[ SWAP  DUP 0 GET @HASHLABELS '%2B.todiv' RENAME SWAP 1 GET @HASHLABELS $hashlabel op.div ]  APPLY NONEMPTY { 'hash_945fa9bc3027d7025e3' '' } RELABEL \n",
+		ScalarToVector: warpHashLabels + " [ SWAP @HASHLABELS DUP [ SWAP $left mapper.replace 0 0 0 ] MAP SWAP @HASHLABELS $hashlabel op.div ]  APPLY { 'hash_945fa9bc3027d7025e3' '' } RELABEL\n",
+		VectorToVector: "[ SWAP  DUP 0 GET @HASHLABELS '%2B.todiv' RENAME SWAP 1 GET @HASHLABELS $hashlabel op.div ]  APPLY { 'hash_945fa9bc3027d7025e3' '' } RELABEL \n",
 		GroupLeft:      groupOnPer("$left", "op.div", true),
 		GroupRight:     groupOnPer("$right", "op.div", true),
 	},
@@ -733,48 +738,48 @@ var binaryExprEquivalences = map[string]binaryExprEquivalence{
 	},
 	">": {
 		ScalarToScalar: " > ",
-		VectorToScalar: "[ SWAP $right DUP TYPEOF <% 'LONG' == %> <% TODOUBLE %> IFT mapper.gt 0 0 0 ] MAP\n NONEMPTY\n",
-		ScalarToVector: "[ SWAP $left DUP TYPEOF <% 'LONG' == %> <% TODOUBLE %> IFT mapper.le 0 0 0 ] MAP\n NONEMPTY\n",
+		VectorToScalar: "[ SWAP $right DUP TYPEOF <% 'LONG' == %> <% TODOUBLE %> IFT mapper.gt 0 0 0 ] MAP\n",
+		ScalarToVector: "[ SWAP $left DUP TYPEOF <% 'LONG' == %> <% TODOUBLE %> IFT mapper.le 0 0 0 ] MAP\n",
 		VectorToVector: getComparatorScript("op.gt"),
 		GroupLeft:      groupOnPer("$left", "op.gt", false),
 		GroupRight:     groupOnPer("$right", "op.gt", false),
 	},
 	"<": {
 		ScalarToScalar: " < ",
-		VectorToScalar: "[ SWAP $right DUP TYPEOF <% 'LONG' == %> <% TODOUBLE %> IFT mapper.lt 0 0 0 ] MAP\n NONEMPTY\n",
-		ScalarToVector: "[ SWAP $left DUP TYPEOF <% 'LONG' == %> <% TODOUBLE %> IFT mapper.ge 0 0 0 ] MAP\n NONEMPTY\n",
+		VectorToScalar: "[ SWAP $right DUP TYPEOF <% 'LONG' == %> <% TODOUBLE %> IFT mapper.lt 0 0 0 ] MAP\n",
+		ScalarToVector: "[ SWAP $left DUP TYPEOF <% 'LONG' == %> <% TODOUBLE %> IFT mapper.ge 0 0 0 ] MAP\n",
 		VectorToVector: getComparatorScript("op.lt"),
 		GroupLeft:      groupOnPer("$left", "op.lt", false),
 		GroupRight:     groupOnPer("$right", "op.lt", false),
 	},
 	"==": {
 		ScalarToScalar: " == ",
-		VectorToScalar: "[ SWAP $right DUP TYPEOF <% 'LONG' == %> <% TODOUBLE %> IFT mapper.eq 0 0 0 ] MAP\n NONEMPTY\n",
-		ScalarToVector: "[ SWAP $left DUP TYPEOF <% 'LONG' == %> <% TODOUBLE %> IFT mapper.eq 0 0 0 ] MAP\n NONEMPTY\n",
+		VectorToScalar: "[ SWAP $right DUP TYPEOF <% 'LONG' == %> <% TODOUBLE %> IFT mapper.eq 0 0 0 ] MAP\n",
+		ScalarToVector: "[ SWAP $left DUP TYPEOF <% 'LONG' == %> <% TODOUBLE %> IFT mapper.eq 0 0 0 ] MAP\n",
 		VectorToVector: getComparatorScript("op.eq"),
 		GroupLeft:      groupOnPer("$left", "op.eq", false),
 		GroupRight:     groupOnPer("$right", "op.eq", false),
 	},
 	"!=": {
 		ScalarToScalar: " != ",
-		VectorToScalar: "[ SWAP $right DUP TYPEOF <% 'LONG' == %> <% TODOUBLE %> IFT mapper.ne 0 0 0 ] MAP\n NONEMPTY\n",
-		ScalarToVector: "[ SWAP $left DUP TYPEOF <% 'LONG' == %> <% TODOUBLE %> IFT mapper.ne 0 0 0 ] MAP\n NONEMPTY\n",
+		VectorToScalar: "[ SWAP $right DUP TYPEOF <% 'LONG' == %> <% TODOUBLE %> IFT mapper.ne 0 0 0 ] MAP\n",
+		ScalarToVector: "[ SWAP $left DUP TYPEOF <% 'LONG' == %> <% TODOUBLE %> IFT mapper.ne 0 0 0 ] MAP\n",
 		VectorToVector: getComparatorScript("op.ne"),
 		GroupLeft:      groupOnPer("$left", "op.ne", false),
 		GroupRight:     groupOnPer("$right", "op.ne", false),
 	},
 	">=": {
 		ScalarToScalar: " >= ",
-		VectorToScalar: "[ SWAP $right DUP TYPEOF <% 'LONG' == %> <% TODOUBLE %> IFT mapper.ge 0 0 0 ] MAP\n NONEMPTY\n",
-		ScalarToVector: "[ SWAP $left DUP TYPEOF <% 'LONG' == %> <% TODOUBLE %> IFT mapper.lt 0 0 0 ] MAP\n NONEMPTY\n",
+		VectorToScalar: "[ SWAP $right DUP TYPEOF <% 'LONG' == %> <% TODOUBLE %> IFT mapper.ge 0 0 0 ] MAP\n",
+		ScalarToVector: "[ SWAP $left DUP TYPEOF <% 'LONG' == %> <% TODOUBLE %> IFT mapper.lt 0 0 0 ] MAP\n",
 		VectorToVector: getComparatorScript("op.ge"),
 		GroupLeft:      groupOnPer("$left", "op.ge", false),
 		GroupRight:     groupOnPer("$right", "op.ge", false),
 	},
 	"<=": {
 		ScalarToScalar: " <= ",
-		VectorToScalar: "[ SWAP $right DUP TYPEOF <% 'LONG' == %> <% TODOUBLE %> IFT mapper.le 0 0 0 ] MAP\n NONEMPTY\n",
-		ScalarToVector: "[ SWAP $left DUP TYPEOF <% 'LONG' == %> <% TODOUBLE %> IFT mapper.gt 0 0 0 ] MAP\n NONEMPTY\n",
+		VectorToScalar: "[ SWAP $right DUP TYPEOF <% 'LONG' == %> <% TODOUBLE %> IFT mapper.le 0 0 0 ] MAP\n",
+		ScalarToVector: "[ SWAP $left DUP TYPEOF <% 'LONG' == %> <% TODOUBLE %> IFT mapper.gt 0 0 0 ] MAP\n",
 		VectorToVector: getComparatorScript("op.le"),
 		GroupLeft:      groupOnPer("$left", "op.le", false),
 		GroupRight:     groupOnPer("$right", "op.le", false),
@@ -864,11 +869,11 @@ func convertBinaryExpr(b *bytes.Buffer, op string, leftNodeType string, rightNod
 		switch op {
 		case "!=", ">", ">=", "<=", "<", "==":
 		default:
-			b.WriteString("{ 'SHOULD_REMOVE_NAME_LABEL' 'true' } SETATTRIBUTES \n")
+			b.WriteString("{ '" + ShouldRemoveNameLabel + "' 'true' } SETATTRIBUTES \n")
 		}
 	case !strings.Contains(rightNodeType, "NumberLiteralPayload") && strings.Contains(leftNodeType, "NumberLiteralPayload"):
 		b.WriteString(binaryExprEquivalences[op].ScalarToVector)
-		b.WriteString("{ 'SHOULD_REMOVE_NAME_LABEL' 'true' } SETATTRIBUTES \n")
+		b.WriteString("{ '" + ShouldRemoveNameLabel + "' 'true' } SETATTRIBUTES \n")
 	case !strings.Contains(leftNodeType, "NumberLiteralPayload") && !strings.Contains(rightNodeType, "NumberLiteralPayload"):
 		if card == "many-to-one" {
 			b.WriteString(warpHashLabels + "\n" + binaryExprEquivalences[op].GroupLeft)
@@ -876,9 +881,9 @@ func convertBinaryExpr(b *bytes.Buffer, op string, leftNodeType string, rightNod
 			b.WriteString(warpHashLabels + "\n" + binaryExprEquivalences[op].GroupRight)
 		} else {
 			b.WriteString("true 'shouldRemoveName' STORE \n")
-			b.WriteString("DUP <% <% <% ATTRIBUTES 'SHOULD_REMOVE_NAME_LABEL' CONTAINSKEY %> <% 'SHOULD_REMOVE_NAME_LABEL' GET TOBOOLEAN $shouldRemoveName && 'shouldRemoveName' STORE %> <% DROP %> IFTE %> FOREACH %> FOREACH \n")
+			b.WriteString("DUP <% <% <% ATTRIBUTES '" + ShouldRemoveNameLabel + "' CONTAINSKEY %> <% '" + ShouldRemoveNameLabel + "' GET TOBOOLEAN $shouldRemoveName && 'shouldRemoveName' STORE %> <% DROP %> IFTE %> FOREACH %> FOREACH \n")
 			b.WriteString(warpHashLabels + "\n" + binaryExprEquivalences[op].VectorToVector)
-			b.WriteString("<% $shouldRemoveName %> <% { 'SHOULD_REMOVE_NAME_LABEL' 'true' } SETATTRIBUTES  %> IFT \n")
+			b.WriteString("<% $shouldRemoveName %> <% { '" + ShouldRemoveNameLabel + "' 'true' } SETATTRIBUTES  %> IFT \n")
 		}
 	}
 }
