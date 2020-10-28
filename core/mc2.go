@@ -715,7 +715,7 @@ var binaryExprEquivalences = map[string]binaryExprEquivalence{
 	"/": {
 		ScalarToScalar: " / ",
 		VectorToScalar: "[ SWAP 1 $right TODOUBLE / mapper.mul 0 0 0 ] MAP\n",
-		ScalarToVector: warpHashLabels + " [ SWAP @HASHLABELS DUP [ SWAP $left mapper.replace 0 0 0 ] MAP SWAP @HASHLABELS $hashlabel op.div ]  APPLY { 'hash_945fa9bc3027d7025e3' '' } RELABEL\n",
+		ScalarToVector: warpHashLabels + " [ SWAP DUP [ SWAP $left mapper.replace 0 0 0 ] MAP @HASHLABELS  SWAP @HASHLABELS $hashlabel op.div ]  APPLY { 'hash_945fa9bc3027d7025e3' '' } RELABEL\n",
 		VectorToVector: "[ SWAP  DUP 0 GET @HASHLABELS '%2B.todiv' RENAME SWAP 1 GET @HASHLABELS $hashlabel op.div ]  APPLY { 'hash_945fa9bc3027d7025e3' '' } RELABEL \n",
 		GroupLeft:      groupOnPer("$left", "op.div", true),
 		GroupRight:     groupOnPer("$right", "op.div", true),
@@ -731,10 +731,10 @@ var binaryExprEquivalences = map[string]binaryExprEquivalence{
 	"^": {
 		ScalarToScalar: " ** ",
 		VectorToScalar: "[ SWAP $right TODOUBLE mapper.pow 0 0 0 ] MAP\n",
-		ScalarToVector: "'pow with scalar across GTS not supported' MSGFAIL\n", // FIXME:
-		VectorToVector: "'pow across GTS not supported' MSGFAIL\n",             // FIXME:
-		GroupLeft:      "'pow across GTS not supported' MSGFAIL\n",             // FIXME:
-		GroupRight:     "'pow across GTS not supported' MSGFAIL\n",             // FIXME:
+		ScalarToVector: NewSimpleMacroMapper("TODOUBLE $left TODOUBLE SWAP **"),
+		VectorToVector: "'pow across GTS not supported' MSGFAIL\n", // FIXME:
+		GroupLeft:      "'pow across GTS not supported' MSGFAIL\n", // FIXME:
+		GroupRight:     "'pow across GTS not supported' MSGFAIL\n", // FIXME:
 	},
 	">": {
 		ScalarToScalar: " > ",
@@ -873,7 +873,11 @@ func convertBinaryExpr(b *bytes.Buffer, op string, leftNodeType string, rightNod
 		}
 	case !strings.Contains(rightNodeType, "NumberLiteralPayload") && strings.Contains(leftNodeType, "NumberLiteralPayload"):
 		b.WriteString(binaryExprEquivalences[op].ScalarToVector)
-		b.WriteString("{ '" + ShouldRemoveNameLabel + "' 'true' } SETATTRIBUTES \n")
+		switch op {
+		case "!=", ">", ">=", "<=", "<", "==":
+		default:
+			b.WriteString("{ '" + ShouldRemoveNameLabel + "' 'true' } SETATTRIBUTES \n")
+		}
 	case !strings.Contains(leftNodeType, "NumberLiteralPayload") && !strings.Contains(rightNodeType, "NumberLiteralPayload"):
 		if card == "many-to-one" {
 			b.WriteString(warpHashLabels + "\n" + binaryExprEquivalences[op].GroupLeft)
