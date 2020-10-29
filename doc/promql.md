@@ -141,6 +141,8 @@ The valid promQL functions on the Metrics platform are:
 | stddev_over_time | range-vector | yes |
 | stdvar_over_time | range-vector | yes |
 
+For the `timestamp` function, unary minus are not supported.
+
 ### PromQL examples queries
 
 Here, you will find two valid queries examples.
