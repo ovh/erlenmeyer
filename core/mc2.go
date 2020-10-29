@@ -643,46 +643,101 @@ func getComparatorScript(operator string) string {
 	mc2 := `
 
 	'inputs' STORE
-	$inputs 
+
+	false 'shouldRemoveName' STORE 
+	$inputs 0 GET SIZE 1 == 'scalarZeroInput' STORE
+	$inputs 0 GET <% NAME 'scalar' == $scalarZeroInput && 'scalarZeroInput' STORE %> FOREACH
+	$inputs 1 GET SIZE 1 == 'scalarOneInput' STORE
+	$inputs 1 GET <% NAME 'scalar' == $scalarOneInput && 'scalarOneInput' STORE %> FOREACH
+	<%
+		$scalarZeroInput $scalarOneInput || 
+	%>
 	<% 
-		DROP 
 		<%
-			// Case were hashlabels contains on labels
-			$hashlabel SIZE 1 == $hashlabel 'hash_945fa9bc3027d7025e3' CONTAINS SWAP DROP AND !
+			$scalarZeroInput
 		%>
 		<%
-			$hashlabel
-			PARTITION
-			[]
-			SWAP
+			$inputs 1 GET 
+			$inputs 0 GET 'raw' STORE
+		%> 
+		<%
+			$inputs 0 GET 
+			$inputs 1 GET 'raw' STORE
+		%> 
+		IFTE
+		[] SWAP
+		NULL PARTITION
+		<%
+			SWAP DROP DUP CLONEEMPTY 'metaSeries' STORE 'filteredSeries' STORE
 			<%
-				SWAP DROP 
-				MERGE DEDUP
-				+
+				$scalarZeroInput
 			%>
-			FOREACH
-		%>
-		IFT 
-		@HASHLABELS 
-		DUP 
-		APPEND 
-	%> LMAP 'inputs' STORE
-	$inputs 0 GET 'init' STORE 
-	[ $inputs 0 GET $inputs 1 GET [ 'hash_945fa9bc3027d7025e3' ] ` + operator + ` ]  APPLY NONEMPTY { 'hash_945fa9bc3027d7025e3' '' } RELABEL @HASHLABELS
-	<% DROP 
-		[ SWAP DUP LABELS 'hash_945fa9bc3027d7025e3' GET 'intHash' STORE  ] 'maskSeries' STORE 
-		[ $init [] { 'hash_945fa9bc3027d7025e3' $intHash } filter.bylabels ] FILTER 'filterSeries' STORE
-		<% $filterSeries SIZE 0 == %>
-		<% $filterSeries %>
-		<%
+			<%
+				[ $raw $filteredSeries [] ` + operator + ` ]  APPLY
+				%>
+			<%
+				[ $filteredSeries $raw [] ` + operator + ` ]  APPLY
+			%> 
+			IFTE
+			$metaSeries SWAP + MERGE
+			'maskSeries' STORE
 			[ 
-				$maskSeries
-				$filterSeries 
-				[] op.mask 
+					[ $maskSeries ]
+					$filteredSeries 
+					[] op.mask 
 			] APPLY 
-		%> IFTE
-	%> LMAP 
-	FLATTEN { 'hash_945fa9bc3027d7025e3' '' } RELABEL
+			+
+		%>
+		FOREACH
+		FLATTEN
+	%>
+	<% 
+		$inputs 
+		<% 
+			DROP 
+			<%
+				// Case were hashlabels contains on labels
+				$hashlabel SIZE 1 == $hashlabel 'hash_945fa9bc3027d7025e3' CONTAINS SWAP DROP AND !
+			%>
+			<%
+				$hashlabel
+				PARTITION
+				[]
+				SWAP
+				<%
+					SWAP DROP 
+					MERGE DEDUP
+					+
+				%>
+				FOREACH
+			%>
+			IFT 
+			@HASHLABELS 
+			DUP 
+			APPEND 
+		%> LMAP 'inputs' STORE
+		$inputs 0 GET 
+		true 'skipInputZero' STORE
+		DUP <% NAME 'scalar' == $skipInputZero && 'skipInputZero' STORE %> FOREACH
+		<% $skipInputZero %> <% DROP $inputs 1 GET %> IFT
+		'init' STORE 
+		[ $inputs 0 GET $inputs 1 GET [ 'hash_945fa9bc3027d7025e3' ] ` + operator + ` ]  APPLY NONEMPTY { 'hash_945fa9bc3027d7025e3' '' } RELABEL @HASHLABELS
+		<% DROP 
+			[ SWAP DUP LABELS 'hash_945fa9bc3027d7025e3' GET 'intHash' STORE  ] 'maskSeries' STORE 
+			[ $init [] { 'hash_945fa9bc3027d7025e3' $intHash } filter.bylabels ] FILTER 'filterSeries' STORE
+			<% $filterSeries SIZE 0 == %>
+			<% $filterSeries %>
+			<%
+				[ 
+					$maskSeries
+					$filterSeries 
+					[] op.mask 
+				] APPLY 
+			%> IFTE
+		%> LMAP 
+		FLATTEN { 'hash_945fa9bc3027d7025e3' '' } RELABEL
+	%>
+	IFTE
 	`
 	return mc2
 }
