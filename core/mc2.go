@@ -53,7 +53,7 @@ func (n *Node) ToWarpScript(token string, query string, step string) string {
 	b.WriteString("\t [ SWAP bucketizer.last $end $step 0 ] BUCKETIZE FILLPREVIOUS FILLNEXT \n")
 	b.WriteString("\t { '" + ShouldRemoveNameLabel + "' 'true' } SETATTRIBUTES \n")
 	b.WriteString("%> IFT \n")
-	b.WriteString("\nNONEMPTY SORT UNBUCKETIZE [ SWAP mapper.finite 0 0 0 ] MAP\n")
+	b.WriteString("\nNONEMPTY SORT UNBUCKETIZE [ SWAP mapper.tostring 0 0 0 ] MAP\n")
 
 	return b.String()
 }
@@ -417,6 +417,13 @@ func (n *Node) Write(b *bytes.Buffer) {
 		} else {
 			b.WriteString(" [ '" + strings.Join(p.IncludeLabels, "' '") + "' ] 'include_labels' STORE \n")
 		}
+		if p.Card == "many-to-one" {
+			// " [ 'many-to-one' ] 'joinedLabels' STORE \n"
+		} else if p.Card == "one-to-many" {
+			b.WriteString(" [ 'one-to-many' ] 'joinedLabels' STORE \n")
+		} else {
+			b.WriteString(" [] 'joinedLabels' STORE \n")
+		}
 		convertBinaryExpr(b, p.Op, leftNodeType, rightNodeType, p.Card)
 		if p.ReturnBool {
 			b.WriteString(" [ NaN NaN NaN 0 ] FILLVALUE UNBUCKETIZE [ SWAP mapper.toboolean 0 0 0 ] MAP [ SWAP mapper.todouble 0 0 0 ] MAP  \n")
@@ -639,6 +646,80 @@ func groupOnPer(side, operator string, addLeftSuffix bool) string {
 	return mc2
 }
 
+func getSingleOperatorScript(operator string) string {
+	promString := ""
+	switch operator {
+	case "%":
+		promString = "modulo"
+	case "**":
+		promString = "pow"
+	}
+	mc2 := `
+	'inputs' STORE
+	true 'shouldRemoveName' STORE 
+	$inputs 0 GET SIZE 1 == 'scalarZeroInput' STORE
+	$inputs 0 GET <% NAME 'scalar' == $scalarZeroInput && 'scalarZeroInput' STORE %> FOREACH
+	$inputs 1 GET SIZE 1 == 'scalarOneInput' STORE
+	$inputs 1 GET <% NAME 'scalar' == $scalarOneInput && 'scalarOneInput' STORE %> FOREACH
+	<%
+		$scalarZeroInput $scalarOneInput || 
+	%>
+	<% 
+		<%
+			$scalarZeroInput
+		%>
+		<%
+			$inputs 1 GET 
+			$inputs 0 GET 'raw' STORE
+		%> 
+		<%
+			$inputs 0 GET 
+			$inputs 1 GET 'raw' STORE
+		%> 
+		IFTE
+		[] SWAP
+		NULL PARTITION
+		<%
+			SWAP DROP DUP CLONEEMPTY 'metaSeries' STORE 'filteredSeries' STORE
+			<%
+				$scalarZeroInput
+			%>
+			<%
+				$raw $filteredSeries APPEND
+			%>
+			<%
+				$filteredSeries $raw APPEND
+			%> 
+			IFTE
+			
+			[
+              SWAP
+              []
+              <%
+                DUP 0 GET 
+                SWAP 
+                7 GET 
+                DUP 0 GET SWAP 1 GET ` + operator + `
+                NaN SWAP
+                NaN SWAP
+                NaN SWAP
+              %> 
+              MACROREDUCER
+            ] REDUCE
+			$metaSeries SWAP + MERGE
+			+
+		%>
+		FOREACH
+		FLATTEN
+	%>
+	<%
+        '` + promString + ` across GTS not supported' MSGFAIL
+    %>
+	IFTE
+	`
+	return mc2
+}
+
 func getComparatorScript(operator string) string {
 	mc2 := `
 
@@ -692,6 +773,7 @@ func getComparatorScript(operator string) string {
 		FLATTEN
 	%>
 	<% 
+		true 'shouldRemoveName' STORE 
 		$inputs 
 		<% 
 			DROP 
@@ -779,7 +861,7 @@ var binaryExprEquivalences = map[string]binaryExprEquivalence{
 		ScalarToScalar: " % ",
 		VectorToScalar: NewSimpleMacroMapper("TODOUBLE $right TODOUBLE %"),
 		ScalarToVector: NewSimpleMacroMapper("TODOUBLE $left TODOUBLE SWAP %"),
-		VectorToVector: "'modulo across GTS not supported' MSGFAIL\n", // FIXME:
+		VectorToVector: getSingleOperatorScript("%"),                  // FIXME: still not supported between GTS
 		GroupLeft:      "'modulo across GTS not supported' MSGFAIL\n", // FIXME:
 		GroupRight:     "'modulo across GTS not supported' MSGFAIL\n", // FIXME:
 	},
@@ -787,7 +869,7 @@ var binaryExprEquivalences = map[string]binaryExprEquivalence{
 		ScalarToScalar: " ** ",
 		VectorToScalar: "[ SWAP $right TODOUBLE mapper.pow 0 0 0 ] MAP\n",
 		ScalarToVector: NewSimpleMacroMapper("TODOUBLE $left TODOUBLE SWAP **"),
-		VectorToVector: "'pow across GTS not supported' MSGFAIL\n", // FIXME:
+		VectorToVector: getSingleOperatorScript("**"),              // FIXME: still not supported between GTS
 		GroupLeft:      "'pow across GTS not supported' MSGFAIL\n", // FIXME:
 		GroupRight:     "'pow across GTS not supported' MSGFAIL\n", // FIXME:
 	},
