@@ -60,8 +60,14 @@ func (ev *evaluator) eval(expr promql.Expr, node *core.Node, ctx Context) {
 
 		node.Left = lhs
 		node.Left.Level = node.Level + 1
+		if vm != nil {
+			node.Left.ChildLabels = vm.Include
+		}
 		node.Right = rhs
 		node.Right.Level = node.Level + 1
+		if vm != nil {
+			node.Left.ChildLabels = vm.Include
+		}
 
 		ev.eval(e.LHS, lhs, ctx)
 		ev.eval(e.RHS, rhs, ctx)

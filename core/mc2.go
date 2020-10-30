@@ -104,10 +104,21 @@ func (n *Node) toWarpScript(b *bytes.Buffer) {
 			b.WriteString("$right\n")
 		}
 
+		if len(n.ChildLabels) == 0 {
+			b.WriteString(" [] 'child_labels' STORE \n")
+		} else {
+			b.WriteString(" [ '" + strings.Join(n.ChildLabels, "' '") + "' ] 'child_labels' STORE \n")
+		}
+
 		n.Write(b)
 	} else {
 		if n.Left != nil {
 			n.Left.toWarpScript(b)
+		}
+		if len(n.ChildLabels) == 0 {
+			b.WriteString(" [] 'child_labels' STORE \n")
+		} else {
+			b.WriteString(" [ '" + strings.Join(n.ChildLabels, "' '") + "' ] 'child_labels' STORE \n")
 		}
 		n.Write(b)
 	}
@@ -506,7 +517,7 @@ func convertAggregate(b *bytes.Buffer, p AggregatePayload) {
 		} else if p.Without && len(p.Grouping) == 0 {
 			b.WriteString("] DROP NULL [] 'equivalenceClass' STORE ")
 		} else {
-			b.WriteString("] DUP 'equivalenceClass' STORE ")
+			b.WriteString("] DUP $child_labels APPEND 'equivalenceClass' STORE ")
 		}
 
 		if p.Op == "quantile" {

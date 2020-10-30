@@ -11,10 +11,11 @@ type payload interface{}
 // Node is the struct holding the query tree.
 // Needed for promql, it served also for Graphite protocol
 type Node struct {
-	Level   int
-	Left    *Node
-	Right   *Node
-	Payload payload
+	Level       int
+	Left        *Node
+	Right       *Node
+	Payload     payload
+	ChildLabels []string
 }
 
 // NewNode is creating a new node with a specific type and Payload
