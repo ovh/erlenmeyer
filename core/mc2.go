@@ -435,6 +435,11 @@ func (n *Node) Write(b *bytes.Buffer) {
 		} else {
 			b.WriteString(" [] 'joinedLabels' STORE \n")
 		}
+		if p.ReturnBool {
+			b.WriteString("true 'return_bool' STORE \n")
+		} else {
+			b.WriteString("false 'return_bool' STORE \n")
+		}
 		convertBinaryExpr(b, p.Op, leftNodeType, rightNodeType, p.Card)
 		if p.ReturnBool {
 			b.WriteString(" [ NaN NaN NaN 0 ] FILLVALUE UNBUCKETIZE [ SWAP mapper.toboolean 0 0 0 ] MAP [ SWAP mapper.todouble 0 0 0 ] MAP  \n")
@@ -865,19 +870,25 @@ func getComparatorScript(operator string) string {
 		<% $skipInputZero %> <% DROP $inputs 1 GET %> IFT
 		'init' STORE 
 		[ $inputs 0 GET $inputs 1 GET [ 'hash_945fa9bc3027d7025e3' ] ` + operator + ` ]  APPLY NONEMPTY { 'hash_945fa9bc3027d7025e3' '' } RELABEL @HASHLABELS
-		<% DROP 
-			[ SWAP DUP LABELS 'hash_945fa9bc3027d7025e3' GET 'intHash' STORE  ] 'maskSeries' STORE 
-			[ $init [] { 'hash_945fa9bc3027d7025e3' $intHash } filter.bylabels ] FILTER 'filterSeries' STORE
-			<% $filterSeries SIZE 0 == %>
-			<% $filterSeries %>
-			<%
-				[ 
-					$maskSeries
-					$filterSeries 
-					[] op.mask 
-				] APPLY 
-			%> IFTE
-		%> LMAP 
+		<% 
+			$return_bool !
+		%>
+		<%
+			<% DROP 
+				[ SWAP DUP LABELS 'hash_945fa9bc3027d7025e3' GET 'intHash' STORE  ] 'maskSeries' STORE 
+				[ $init [] { 'hash_945fa9bc3027d7025e3' $intHash } filter.bylabels ] FILTER 'filterSeries' STORE
+				<% $filterSeries SIZE 0 == %>
+				<% $filterSeries %>
+				<%
+					[ 
+						$maskSeries
+						$filterSeries 
+						[] op.mask 
+					] APPLY 
+				%> IFTE
+			%> LMAP 
+		%>
+		IFT
 		FLATTEN { 'hash_945fa9bc3027d7025e3' '' } RELABEL
 	%>
 	IFTE
