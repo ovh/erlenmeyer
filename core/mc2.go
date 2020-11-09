@@ -460,13 +460,36 @@ func (n *Node) Write(b *bytes.Buffer) {
 }
 
 var macroFilterAggregateFooter = `
+'without_map' STORE
+$child_labels
+<%
+    'child_key' STORE
+    <%
+        $without_map $child_key CONTAINSKEY
+    %>
+    <%
+		$child_key REMOVE DROP $without_keys $child_key + 'without_keys' STORE 'without_map' STORE
+    %>
+    <%
+        DROP
+    %>
+    IFTE
+%>
+FOREACH
+$without_map
 RELABEL
 
 [] 'equivalenceClass' STORE
 <%
    DROP
    DUP
-   LABELS KEYLIST
+   LABELS 
+   $without_keys
+   <%
+      REMOVE DROP
+   %>
+   FOREACH
+   KEYLIST
    $equivalenceClass
    APPEND UNIQUE 'equivalenceClass' STORE
 %>
@@ -492,6 +515,7 @@ var simpleSupportedAggregator = map[string]string{
 // nolint: gocyclo
 func convertAggregate(b *bytes.Buffer, p AggregatePayload) {
 	// Filtering using without
+	b.WriteString("[] 'without_keys' STORE\n")
 	if p.Without && len(p.Grouping) > 0 {
 		suffix := ""
 		if p.Op == "topk" || p.Op == "bottomk" {
@@ -529,6 +553,8 @@ func convertAggregate(b *bytes.Buffer, p AggregatePayload) {
 
 		// When Without is set and grouping equals 0 skip labels refactoring
 		if !(p.Without && len(p.Grouping) == 0) {
+			// Keep also child nested needed labels
+			b.WriteString("$equivalenceClass $without_keys APPEND 'equivalenceClass' STORE\n")
 			// Keep only labels in the equivalence class like does promQL
 			b.WriteString("MARK SWAP  <%  DUP LABELS { } SWAP  <% 'v' STORE 'k' STORE <% $equivalenceClass $k CONTAINS %> <%  DROP { $k $v } APPEND  %> <% DROP %> IFTE %> FOREACH SWAP { NULL NULL } RELABEL SWAP RELABEL %> FOREACH COUNTTOMARK ->LIST SWAP DROP\n")
 		}
