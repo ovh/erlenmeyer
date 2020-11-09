@@ -671,9 +671,33 @@ func groupOnPer(side, operator string, addLeftSuffix bool) string {
 	   [] 
        SWAP
 	   <%
-		   SWAP $include_labels SUBMAP 'sub_labels' STORE 
-		   $empty_series + REVERSE  MERGE $sub_labels RELABEL DEDUP
-		   +
+		    SWAP $include_labels SUBMAP 'sub_labels' STORE
+            '' 'series_name' STORE 
+            true 'same_name' STORE
+            DUP 
+            <% SIZE 0 > %>
+			<% 
+				DUP 
+				0 GET NAME 'series_name' STORE  
+				DUP
+				<% 
+				<%
+					NAME $series_name !=
+				%>
+				<%
+					false 'same_name' STORE
+				%>
+				IFT
+				%>
+				FOREACH
+			%> IFT  
+			$empty_series + REVERSE  MERGE $sub_labels RELABEL DEDUP
+			<% $same_name $empty_series NAME $series_name == && ! %> 
+			<%
+				{ '` + ShouldRemoveNameLabel + `' 'true' } SETATTRIBUTES
+			%> 
+			IFT
+		    +
 	   %>
 	   FOREACH
    %>
