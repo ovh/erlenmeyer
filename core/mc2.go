@@ -384,7 +384,7 @@ func (n *Node) Write(b *bytes.Buffer) {
 			b.WriteString("UNBUCKETIZE [ SWAP mapper.round 0 0 0 ] MAP\n")
 		case "scalar":
 			b.WriteString("DUP SIZE <% 1 == %> <% VALUES 0 GET 0 GET %> <% DROP NaN %> IFTE\n")
-			b.WriteString(" 'value' STORE [ $start $end ] [] [] [] [ $value DUP ] { '" + ShouldRemoveNameLabel + "' 'true' } SETATTRIBUTES MAKEGTS 'scalar' RENAME\n")
+			b.WriteString(" 'value' STORE [ $start $end ] [] [] [] [ $value DUP ] MAKEGTS 'scalar' RENAME { '" + ShouldRemoveNameLabel + "' 'true' } SETATTRIBUTES\n")
 			b.WriteString(" [ SWAP bucketizer.mean $end $step $instant ] BUCKETIZE INTERPOLATE SORT\n")
 		case "sort":
 			b.WriteString("<% [ SWAP bucketizer.mean 0 0 1 ] BUCKETIZE VALUES 0 GET 0 GET %> SORTBY\n")
@@ -393,7 +393,7 @@ func (n *Node) Write(b *bytes.Buffer) {
 		case "sqrt":
 			b.WriteString("[ SWAP mapper.sqrt 0 0 0 ] MAP\n")
 		case "time":
-			b.WriteString(" [ $start $end ] [] [] [] [ 1 DUP ] { '" + ShouldRemoveNameLabel + "' 'true' } SETATTRIBUTES  MAKEGTS 'scalar' RENAME\n")
+			b.WriteString(" [ $start $end ] [] [] [] [ 1 DUP ]  MAKEGTS 'scalar' RENAME { '" + ShouldRemoveNameLabel + "' 'true' } SETATTRIBUTES\n")
 			b.WriteString(" [ SWAP bucketizer.mean $end $step $instant ] BUCKETIZE INTERPOLATE SORT\n")
 			b.WriteString(" [ SWAP mapper.tick 0 0 0 ] MAP [ SWAP 0.000001 mapper.mul 0 0 0 ] MAP \n")
 		case "timestamp":
