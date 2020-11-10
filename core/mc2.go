@@ -343,9 +343,11 @@ func (n *Node) Write(b *bytes.Buffer) {
 			b.WriteString(p.Args[0] + fixScalar())
 			b.WriteString("PUT RELABEL %> LMAP\n")
 		case "label_replace":
-			b.WriteString(p.Args[0] + fixScalar() + " 'new_label' STORE " + p.Args[1] + fixScalar() + " 'replacement' STORE " + p.Args[2] + fixScalar() + " 'src_label' STORE " + p.Args[3] + fixScalar() + " 'regex' STORE \n")
+			b.WriteString(p.Args[0] + " 'new_label' STORE " + p.Args[1] + " 'replacement' STORE " + p.Args[2] + " 'src_label' STORE " + p.Args[3] + " 'regex' STORE \n")
 			b.WriteString("MARK SWAP <%  DUP DUP NAME 'c' STORE LABELS { '__name__' $c  '' '' } APPEND DUP  $src_label GET DUP \n")
-			b.WriteString("<% ISNULL %>  <% DROP DROP %> <% DUP $regex MATCH SIZE \n")
+			b.WriteString("<% ISNULL %>  \n")
+			b.WriteString("<% DROP DUP $new_label GET DUP <% ISNULL %> <% DROP DROP %> <% <% 'source-value-' $regex 0 13  SUBSTRING != %> <% DROP '' %> IFT $regex $replacement REPLACE $new_label <% DUP '__name__' == %> <% DROP SWAP DROP RENAME %> <% PUT RELABEL %> IFTE %> IFTE %>  \n")
+			b.WriteString("<% DUP $regex MATCH SIZE \n")
 			b.WriteString("<% 0  >  %>  <%   $regex $replacement REPLACE  $new_label <% DUP '__name__' == %> <% DROP SWAP DROP RENAME %> <% PUT RELABEL %> IFTE %>  <% DROP DROP %> IFTE\n")
 			b.WriteString("%> IFTE %> FOREACH COUNTTOMARK ->LIST SWAP DROP\n")
 		case "ln":
@@ -457,7 +459,11 @@ func (n *Node) Write(b *bytes.Buffer) {
 		case "NaN":
 			b.WriteString(" NaN ")
 		default:
-			b.WriteString(fmt.Sprintf(" %s TODOUBLE ", p.Value))
+			if _, err := strconv.ParseFloat(p.Value, 64); err == nil {
+				b.WriteString(fmt.Sprintf(" %s TODOUBLE ", p.Value))
+			} else {
+				b.WriteString(fmt.Sprintf(" %s ", p.Value))
+			}
 		}
 
 	case UnaryExprPayload:
