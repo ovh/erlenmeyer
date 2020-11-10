@@ -7,6 +7,7 @@ import (
 	"io/ioutil"
 	"net/http"
 	"net/http/httputil"
+	"strings"
 
 	"github.com/ovh/erlenmeyer/core"
 	"github.com/ovh/erlenmeyer/middlewares"
@@ -238,7 +239,11 @@ func (p *QL) QueryRange(w http.ResponseWriter, r *http.Request) {
 		respondWithError(w, err, http.StatusServiceUnavailable)
 		return
 	}
-	buffer = []byte(string(buffer))
+
+	// HACK : replace Infinity values from Warp to Inf
+	s := strings.Replace(string(buffer), "Infinity", "+Inf", -1)
+	s = strings.Replace(s, "-+Inf", "-Inf", -1)
+	buffer = []byte(s)
 
 	responses := [][]core.GeoTimeSeries{}
 	err = json.Unmarshal(buffer, &responses)

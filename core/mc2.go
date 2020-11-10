@@ -450,11 +450,11 @@ func (n *Node) Write(b *bytes.Buffer) {
 	case NumberLiteralPayload:
 		switch p.Value {
 		case fmt.Sprintf("%v", math.Inf(1)):
-			b.WriteString(fmt.Sprintf(" '%s' ", p.Value))
+			b.WriteString(" 1.0 0.0 / ")
 		case fmt.Sprintf("%v", math.Inf(-1)):
-			b.WriteString(fmt.Sprintf(" '%s' ", p.Value))
+			b.WriteString(" -1.0 0.0 / ")
 		case "NaN":
-			b.WriteString(fmt.Sprintf(" '%s' ", p.Value))
+			b.WriteString(" NaN ")
 		default:
 			b.WriteString(fmt.Sprintf(" %s TODOUBLE ", p.Value))
 		}
