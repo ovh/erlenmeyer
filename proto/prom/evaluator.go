@@ -120,6 +120,16 @@ func (ev *evaluator) eval(expr promql.Expr, node *core.Node, ctx Context) {
 		node.Payload = core.NumberLiteralPayload{
 			Value: e.String(),
 		}
+
+	case *promql.UnaryExpr:
+		node.Payload = core.UnaryExprPayload{
+			Op: e.Op.String(),
+		}
+		lhs := core.NewEmptyNode()
+		node.Left = lhs
+
+		ev.eval(e.Expr, lhs, ctx)
+
 	default:
 		// FIXME:Flush into a GTS
 		log.Errorf(fmt.Sprintf("Type %T is not handled", expr))

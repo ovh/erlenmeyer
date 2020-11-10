@@ -459,6 +459,16 @@ func (n *Node) Write(b *bytes.Buffer) {
 			b.WriteString(fmt.Sprintf(" %s TODOUBLE ", p.Value))
 		}
 
+	case UnaryExprPayload:
+		switch p.Op {
+		case "-":
+			b.WriteString("\nDUP TYPEOF <% 'LIST' != %> <% \n")
+			b.WriteString("\t 'gts_values' STORE NEWGTS $start NaN NaN NaN $gts_values ADDVALUE $end NaN NaN NaN $gts_values ADDVALUE \n")
+			b.WriteString("\t [ SWAP bucketizer.last $end $step 0 ] BUCKETIZE FILLPREVIOUS FILLNEXT \n")
+			b.WriteString("%> IFT \n")
+			b.WriteString(" [ SWAP -1 mapper.mul 0 0 0 ] MAP\n")
+			b.WriteString("\t { '" + ShouldRemoveNameLabel + "' 'true' } SETATTRIBUTES \n")
+		}
 	default:
 		panic(fmt.Sprintf("Type %T is not handled", n.Payload))
 	}

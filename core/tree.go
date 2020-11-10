@@ -78,6 +78,11 @@ type AggregatePayload struct {
 	KeepCommonLabels bool     // Whether to keep common labels among result elements.
 }
 
+// UnaryExprPayload inverse data
+type UnaryExprPayload struct {
+	Op string
+}
+
 // NumberLiteralPayload is holding a number
 type NumberLiteralPayload struct {
 	Value string
