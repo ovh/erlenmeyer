@@ -761,10 +761,10 @@ func getSingleOperatorScript(operator string) string {
 				$scalarZeroInput
 			%>
 			<%
-				$raw $filteredSeries APPEND
+				$raw CLONE SWAP DROP $filteredSeries APPEND 
 			%>
 			<%
-				$filteredSeries $raw APPEND
+				$filteredSeries $raw CLONE SWAP DROP APPEND
 			%> 
 			IFTE
 			
