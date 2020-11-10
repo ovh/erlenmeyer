@@ -285,7 +285,17 @@ func respondWithError(w http.ResponseWriter, err error, statusCode int) {
 		resp.ErrorType = errorExec
 	}
 
-	resp.Error = err.Error()
+	if strings.Contains(err.Error(), "in section [TOP] (MSGFAIL") {
+		errors := strings.Split(err.Error(), "in section [TOP] (MSGFAIL ")
+		if len(errors) > 0 {
+			resp.Error = strings.TrimSuffix(errors[1], ")")
+			// when their is a second )
+			resp.Error = strings.TrimSuffix(resp.Error, ")")
+		}
+	} else {
+		resp.Error = err.Error()
+	}
+
 	b, err := json.Marshal(&resp)
 	if err != nil {
 		panic(err)

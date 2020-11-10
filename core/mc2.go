@@ -124,6 +124,19 @@ func (n *Node) toWarpScript(b *bytes.Buffer) {
 	}
 }
 
+// IsValid check if a label name string is Valid
+func IsValid(labelName string) bool {
+	if len(labelName) == 0 {
+		return false
+	}
+	for i, b := range labelName {
+		if !((b >= 'a' && b <= 'z') || (b >= 'A' && b <= 'Z') || b == '_' || b == '.' || (b >= '0' && b <= '9' && i > 0)) {
+			return false
+		}
+	}
+	return true
+}
+
 // Write write node content
 // nolint: gocyclo
 func (n *Node) Write(b *bytes.Buffer) {
@@ -343,6 +356,11 @@ func (n *Node) Write(b *bytes.Buffer) {
 			b.WriteString(p.Args[0] + fixScalar())
 			b.WriteString("PUT RELABEL %> LMAP\n")
 		case "label_replace":
+			log.Warn(p.Args[0])
+			promLabel := strings.Trim(p.Args[0], " [] 'child_labels' STORE \n")
+			if !IsValid(strings.Trim(strings.TrimSpace(promLabel), "\"")) {
+				b.WriteString("'invalid destination label name in label_replace(): ' " + p.Args[0] + " + MSGFAIL\n")
+			}
 			b.WriteString(p.Args[0] + " 'new_label' STORE " + p.Args[1] + " 'replacement' STORE " + p.Args[2] + " 'src_label' STORE " + p.Args[3] + " 'regex' STORE \n")
 			b.WriteString("MARK SWAP <%  DUP DUP NAME 'c' STORE LABELS { '__name__' $c  '' '' } APPEND DUP  $src_label GET DUP \n")
 			b.WriteString("<% ISNULL %>  \n")
