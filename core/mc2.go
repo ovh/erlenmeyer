@@ -273,11 +273,11 @@ func (n *Node) Write(b *bytes.Buffer) {
 	case FunctionPayload:
 		switch p.Name {
 		case "abs":
-			b.WriteString("[ SWAP mapper.abs 0 0 0 ] MAP\n")
+			b.WriteString("[ SWAP mapper.abs 0 0 0 ] MAP { '" + ShouldRemoveNameLabel + "' 'true' } SETATTRIBUTES\n")
 		case "absent":
 			b.WriteString("[ SWAP 0.0 mapper.replace 0 0 0 ] MAP [ NaN NaN NaN 1 ] FILLVALUE ")
 		case "ceil":
-			b.WriteString("UNBUCKETIZE [ SWAP mapper.ceil 0 0 0 ] MAP\n")
+			b.WriteString("UNBUCKETIZE [ SWAP mapper.ceil 0 0 0 ] MAP { '" + ShouldRemoveNameLabel + "' 'true' } SETATTRIBUTES\n")
 		case "changes":
 			// COMPACT will dedup useless values, then we check if lasttick has the same value than penultimate (lasttick is forced by COMPACT), if yes we decrease the size by 1.
 			b.WriteString("COMPACT MARK SWAP <% DUP DUP DUP NAME 'name' STORE LABELS 'l' STORE LASTTICK 'lt' STORE\n")
@@ -308,8 +308,9 @@ func (n *Node) Write(b *bytes.Buffer) {
 			b.WriteString("DUP [ SWAP [ ] reducer.count ] REDUCE 0 GET LABELS KEYLIST MARK SWAP <% '' %> FOREACH COUNTTOMARK ->MAP SWAP DROP RELABEL\n")
 		case "exp":
 			b.WriteString(NewSimpleMacroMapper("EXP"))
+			b.WriteString(" { '" + ShouldRemoveNameLabel + "' 'true' } SETATTRIBUTES \n")
 		case "floor":
-			b.WriteString("UNBUCKETIZE [ SWAP mapper.floor 0 0 0 ] MAP\n")
+			b.WriteString("UNBUCKETIZE [ SWAP mapper.floor 0 0 0 ] MAP { '" + ShouldRemoveNameLabel + "' 'true' } SETATTRIBUTES\n")
 		case "histogram_quantile":
 			b.WriteString(p.Args[0] + fixScalar() + " 'QUANTILE' STORE \n" + warpBucketQuantile + "\n" + warpReducerHistogram + "\n")
 			b.WriteString("<% 'equivalenceClass' DEFINED ! %> <%  [ ] 'equivalenceClass' STORE %> IFT \n")
@@ -348,11 +349,11 @@ func (n *Node) Write(b *bytes.Buffer) {
 			b.WriteString("<% 0  >  %>  <%   $regex $replacement REPLACE  $new_label <% DUP '__name__' == %> <% DROP SWAP DROP RENAME %> <% PUT RELABEL %> IFTE %>  <% DROP DROP %> IFTE\n")
 			b.WriteString("%> IFTE %> FOREACH COUNTTOMARK ->LIST SWAP DROP\n")
 		case "ln":
-			b.WriteString("[ SWAP e mapper.log 0 0 0 ] MAP\n")
+			b.WriteString("[ SWAP e mapper.log 0 0 0 ] MAP { '" + ShouldRemoveNameLabel + "' 'true' } SETATTRIBUTES\n")
 		case "log2":
-			b.WriteString("[ SWAP 2.0 mapper.log 0 0 0 ] MAP\n")
+			b.WriteString("[ SWAP 2.0 mapper.log 0 0 0 ] MAP { '" + ShouldRemoveNameLabel + "' 'true' } SETATTRIBUTES\n")
 		case "log10":
-			b.WriteString("[ SWAP 10.0 mapper.log 0 0 0 ] MAP\n")
+			b.WriteString("[ SWAP 10.0 mapper.log 0 0 0 ] MAP { '" + ShouldRemoveNameLabel + "' 'true' } SETATTRIBUTES\n")
 
 		// Predict_linear works as a mapper in Prom
 		// Compute alpha and beta linear regression on a range value ([1m] as example),
@@ -381,7 +382,7 @@ func (n *Node) Write(b *bytes.Buffer) {
 				b.WriteString("UNBUCKETIZE [ SWAP mapper.round 0 0 0 ] MAP\n")
 				b.WriteString("UNBUCKETIZE [ SWAP " + p.Args[0] + fixScalar() + " TODOUBLE mapper.mul 0 0 0 ] MAP\n")
 			}
-			b.WriteString("UNBUCKETIZE [ SWAP mapper.round 0 0 0 ] MAP\n")
+			b.WriteString("UNBUCKETIZE [ SWAP mapper.round 0 0 0 ] MAP { '" + ShouldRemoveNameLabel + "' 'true' } SETATTRIBUTES\n")
 		case "scalar":
 			b.WriteString("DUP SIZE <% 1 == %> <% VALUES 0 GET 0 GET %> <% DROP NaN %> IFTE\n")
 			b.WriteString(" 'value' STORE [ $start $end ] [] [] [] [ $value DUP ] MAKEGTS 'scalar' RENAME { '" + ShouldRemoveNameLabel + "' 'true' } SETATTRIBUTES\n")
@@ -391,13 +392,13 @@ func (n *Node) Write(b *bytes.Buffer) {
 		case "sort_desc":
 			b.WriteString("<% [ SWAP bucketizer.mean 0 0 1 ] BUCKETIZE VALUES 0 GET 0 GET %> SORTBY REVERSE\n")
 		case "sqrt":
-			b.WriteString("[ SWAP mapper.sqrt 0 0 0 ] MAP\n")
+			b.WriteString("[ SWAP mapper.sqrt 0 0 0 ] MAP { '" + ShouldRemoveNameLabel + "' 'true' } SETATTRIBUTES\n")
 		case "time":
 			b.WriteString(" [ $start $end ] [] [] [] [ 1 DUP ]  MAKEGTS 'scalar' RENAME { '" + ShouldRemoveNameLabel + "' 'true' } SETATTRIBUTES\n")
 			b.WriteString(" [ SWAP bucketizer.mean $end $step $instant ] BUCKETIZE INTERPOLATE SORT\n")
 			b.WriteString(" [ SWAP mapper.tick 0 0 0 ] MAP [ SWAP 0.000001 mapper.mul 0 0 0 ] MAP \n")
 		case "timestamp":
-			b.WriteString(" UNBUCKETIZE [ SWAP mapper.tick 0 0 0 ] MAP [ SWAP 0.000001 mapper.mul 0 0 0 ] MAP\n")
+			b.WriteString(" UNBUCKETIZE [ SWAP mapper.tick 0 0 0 ] MAP [ SWAP 0.000001 mapper.mul 0 0 0 ] MAP { '" + ShouldRemoveNameLabel + "' 'true' } SETATTRIBUTES\n")
 		case "vector":
 			b.WriteString("'scalar' STORE  <% $scalar TYPEOF 'LIST' != %> <% [ $start $end ] [] [] [] [ $scalar ] MAKEGTS  'vector' RENAME [ SWAP bucketizer.mean $end $step $instant ] BUCKETIZE INTERPOLATE SORT %> <% $scalar <% DROP 'vector' RENAME %> LMAP %> IFTE\n")
 		case "year":
