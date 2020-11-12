@@ -304,14 +304,63 @@ func (n *Node) Write(b *bytes.Buffer) {
 		case "count_scalar":
 			b.WriteString("[ SWAP [ ] reducer.count ] REDUCE [ 0.0 0.0 0 0 ] FILLVALUE\n")
 		case "day_of_month":
-			b.WriteString("[ SWAP 'UTC' mapper.day 0 0 0 ] MAP\n")
+			b.WriteString("DEPTH <% 0 == %> <% \n")
+			b.WriteString("\t NEWGTS $start NaN NaN NaN $start ADDVALUE $end NaN NaN NaN $end ADDVALUE \n")
+			b.WriteString("\t [ SWAP bucketizer.last $end $step 0 ] BUCKETIZE FILLPREVIOUS FILLNEXT \n")
+			b.WriteString("[ SWAP 'UTC' mapper.day 0 0 0 ] MAP \n")
+			b.WriteString("%> <% \n")
+			b.WriteString(`
+			[ 
+				SWAP 
+				<% 
+					DUP 0 GET SWAP 
+					7 GET 0 GET 1 s * TOLONG
+					TSELEMENTS 
+					2 GET 
+					NaN SWAP NaN SWAP NaN SWAP
+				%>
+				MACROMAPPER
+				0
+				0
+				0
+			] MAP
+			`)
+			b.WriteString("%> IFTE \n")
+			b.WriteString("{ '" + ShouldRemoveNameLabel + "' 'true' } SETATTRIBUTES \n")
+
 		case "day_of_week":
+			b.WriteString("DEPTH <% 0 == %> <% \n")
+			b.WriteString("\t NEWGTS $start NaN NaN NaN $start ADDVALUE $end NaN NaN NaN $end ADDVALUE \n")
+			b.WriteString("\t [ SWAP bucketizer.last $end $step 0 ] BUCKETIZE FILLPREVIOUS FILLNEXT \n")
 			b.WriteString("[ SWAP 'UTC' mapper.weekday 0 0 0 ] MAP\n")
 			b.WriteString("[ SWAP 7 mapper.mod 0 0 0 ] MAP\n")
+			b.WriteString("%> <% \n")
+			b.WriteString(`
+			[ 
+				SWAP 
+				<% 
+					DUP 0 GET SWAP 
+					7 GET 0 GET 1 s * TOLONG
+					TSELEMENTS 
+					8 GET 
+					NaN SWAP NaN SWAP NaN SWAP
+				%>
+				MACROMAPPER
+				0
+				0
+				0
+			] MAP
+			`)
+			b.WriteString("%> IFTE \n")
+			b.WriteString("{ '" + ShouldRemoveNameLabel + "' 'true' } SETATTRIBUTES\n")
 		case "days_in_month":
+			b.WriteString("DEPTH <% 0 == %> <% \n")
+			b.WriteString("\t NEWGTS $start NaN NaN NaN $start ADDVALUE $end NaN NaN NaN $end ADDVALUE \n")
+			b.WriteString("\t [ SWAP bucketizer.last $end $step 0 ] BUCKETIZE FILLPREVIOUS FILLNEXT \n")
+			b.WriteString("%> IFT \n")
 			b.WriteString(warpIsFebruary + "\n" + warpMacroBissex + "\n" + warpMacroDayInMonth + "\n")
 			b.WriteString("[ SWAP <%  'mapping_window' STORE  $mapping_window 0 GET  'tick' STORE  $tick TSELEMENTS DUP 0 GET 'year' STORE 1 GET 'month' STORE\n")
-			b.WriteString("$month $year @DAYSINMONTH  'days' STORE $tick NaN NaN NaN $days %> MACROMAPPER 0 0 0 ] MAP\n")
+			b.WriteString("$month $year @DAYSINMONTH  'days' STORE $tick NaN NaN NaN $days %> MACROMAPPER 0 0 0 ] MAP { '" + ShouldRemoveNameLabel + "' 'true' } SETATTRIBUTES\n")
 		case "delta":
 			b.WriteString("[ SWAP mapper.delta $step $range MAX -1 * 0 $bucketCount 1 - -1 * ] MAP\n")
 		case "deriv":
@@ -332,7 +381,29 @@ func (n *Node) Write(b *bytes.Buffer) {
 			b.WriteString(" " + p.Args[0] + fixScalar() + " " + p.Args[1] + fixScalar() + "DOUBLEEXPONENTIALSMOOTHING 0 GET\n")
 			b.WriteString("[ SWAP [] op.add ] APPLY\n")
 		case "hour":
+			b.WriteString("DEPTH <% 0 == %> <% \n")
+			b.WriteString("\t NEWGTS $start NaN NaN NaN $start ADDVALUE $end NaN NaN NaN $end ADDVALUE \n")
+			b.WriteString("\t [ SWAP bucketizer.last $end $step 0 ] BUCKETIZE FILLPREVIOUS FILLNEXT \n")
 			b.WriteString("[ SWAP 'UTC' mapper.hour 0 0 0 ] MAP\n")
+			b.WriteString("%> <% \n")
+			b.WriteString(`
+			[ 
+				SWAP 
+				<% 
+					DUP 0 GET SWAP 
+					7 GET 0 GET 1 s * TOLONG
+					TSELEMENTS 
+					3 GET 
+					NaN SWAP NaN SWAP NaN SWAP
+				%>
+				MACROMAPPER
+				0
+				0
+				0
+			] MAP
+			`)
+			b.WriteString("%> IFTE \n")
+			b.WriteString("{ '" + ShouldRemoveNameLabel + "' 'true' } SETATTRIBUTES\n")
 		case "idelta":
 			b.WriteString("[ SWAP mapper.delta 1 0 $bucketCount 1 - -1 * ] MAP\n")
 		case "increase":
@@ -387,9 +458,55 @@ func (n *Node) Write(b *bytes.Buffer) {
 			b.WriteString("<% LR 'beta' STORE 'alpha' STORE $tick NaN NaN NaN $alpha $tick " + p.Args[0] + fixScalar() + "+ $beta * + %> <% DROP $mappingWindow 0 GET NaN NaN NaN NULL %> IFTE %> MACROMAPPER $range $step / 0 $instant -1 * ] MAP\n")
 
 		case "minute":
-			b.WriteString("[ SWAP 'UTC' mapper.minute 0 0 0 ] MAP\n")
+			b.WriteString("DEPTH <% 0 == %> <% \n")
+			b.WriteString("\t NEWGTS $start NaN NaN NaN $start ADDVALUE $end NaN NaN NaN $end ADDVALUE \n")
+			b.WriteString("\t [ SWAP bucketizer.last $end $step 0 ] BUCKETIZE FILLPREVIOUS FILLNEXT \n")
+			b.WriteString("\t [ SWAP 'UTC' mapper.minute 0 0 0 ] MAP \n")
+			b.WriteString("%> <% \n")
+			b.WriteString(`
+			[ 
+				SWAP 
+				<% 
+					DUP 0 GET SWAP 
+					7 GET 0 GET 1 s * TOLONG
+					TSELEMENTS 
+					4 GET 
+					NaN SWAP NaN SWAP NaN SWAP
+				%>
+				MACROMAPPER
+				0
+				0
+				0
+			] MAP
+			`)
+
+			b.WriteString("%> IFTE \n")
+			b.WriteString("{ '" + ShouldRemoveNameLabel + "' 'true' } SETATTRIBUTES \n")
+
 		case "month":
-			b.WriteString("[ SWAP 'UTC' mapper.month 0 0 0 ] MAP\n")
+			b.WriteString("DEPTH <% 0 == %> <% \n")
+			b.WriteString("\t NEWGTS $start NaN NaN NaN $start ADDVALUE $end NaN NaN NaN $end ADDVALUE \n")
+			b.WriteString("\t [ SWAP bucketizer.last $end $step 0 ] BUCKETIZE FILLPREVIOUS FILLNEXT \n")
+			b.WriteString("[ SWAP 'UTC' mapper.month 0 0 0 ] MAP \n")
+			b.WriteString("%> <% \n")
+			b.WriteString(`
+			[ 
+				SWAP 
+				<% 
+					DUP 0 GET SWAP 
+					7 GET 0 GET 1 s * TOLONG
+					TSELEMENTS 
+					1 GET 
+					NaN SWAP NaN SWAP NaN SWAP
+				%>
+				MACROMAPPER
+				0
+				0
+				0
+			] MAP
+			`)
+			b.WriteString("%> IFTE \n")
+			b.WriteString("{ '" + ShouldRemoveNameLabel + "' 'true' } SETATTRIBUTES\n")
 		case "rate":
 			b.WriteString("FALSE RESETS\n")
 			b.WriteString("[ SWAP mapper.rate $step $range MAX -1 * 0 $bucketCount 1 - -1 * ] MAP\n")
@@ -422,7 +539,29 @@ func (n *Node) Write(b *bytes.Buffer) {
 		case "vector":
 			b.WriteString("'scalar' STORE  <% $scalar TYPEOF 'LIST' != %> <% [ $start $end ] [] [] [] [ $scalar ] MAKEGTS  'vector' RENAME [ SWAP bucketizer.mean $end $step $instant ] BUCKETIZE INTERPOLATE SORT %> <% $scalar <% DROP 'vector' RENAME %> LMAP %> IFTE\n")
 		case "year":
-			b.WriteString("[ SWAP 'UTC' mapper.year 0 0 0 ] MAP\n")
+			b.WriteString("DEPTH <% 0 == %> <% \n")
+			b.WriteString("\t NEWGTS $start NaN NaN NaN $start ADDVALUE $end NaN NaN NaN $end ADDVALUE \n")
+			b.WriteString("\t [ SWAP bucketizer.last $end $step 0 ] BUCKETIZE FILLPREVIOUS FILLNEXT \n")
+			b.WriteString("[ SWAP 'UTC' mapper.year 0 0 0 ] MAP \n")
+			b.WriteString("%> <% \n")
+			b.WriteString(`
+			[ 
+				SWAP 
+				<% 
+					DUP 0 GET SWAP 
+					7 GET 0 GET 1 s * TOLONG
+					TSELEMENTS 
+					0 GET 
+					NaN SWAP NaN SWAP NaN SWAP
+				%>
+				MACROMAPPER
+				0
+				0
+				0
+			] MAP
+			`)
+			b.WriteString("%> IFTE \n")
+			b.WriteString("{ '" + ShouldRemoveNameLabel + "' 'true' } SETATTRIBUTES\n")
 		}
 
 	case AggregatePayload:
