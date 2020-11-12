@@ -299,8 +299,10 @@ func (n *Node) Write(b *bytes.Buffer) {
 			b.WriteString("%> FOREACH COUNTTOMARK ->LIST SWAP DROP\n")
 		case "clamp_max":
 			b.WriteString("UNBUCKETIZE [ SWAP " + p.Args[0] + fixScalar() + " mapper.min.x 0 0 0 ] MAP\n")
+			b.WriteString("{ '" + ShouldRemoveNameLabel + "' 'true' } SETATTRIBUTES \n")
 		case "clamp_min":
 			b.WriteString("UNBUCKETIZE [ SWAP " + p.Args[0] + fixScalar() + " mapper.max.x 0 0 0 ] MAP\n")
+			b.WriteString("{ '" + ShouldRemoveNameLabel + "' 'true' } SETATTRIBUTES \n")
 		case "count_scalar":
 			b.WriteString("[ SWAP [ ] reducer.count ] REDUCE [ 0.0 0.0 0 0 ] FILLVALUE\n")
 		case "day_of_month":
