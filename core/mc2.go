@@ -539,7 +539,7 @@ func (n *Node) Write(b *bytes.Buffer) {
 		case "timestamp":
 			b.WriteString(" UNBUCKETIZE [ SWAP mapper.tick 0 0 0 ] MAP [ SWAP 0.000001 mapper.mul 0 0 0 ] MAP { '" + ShouldRemoveNameLabel + "' 'true' } SETATTRIBUTES\n")
 		case "vector":
-			b.WriteString("'scalar' STORE  <% $scalar TYPEOF 'LIST' != %> <% [ $start $end ] [] [] [] [ $scalar ] MAKEGTS  'vector' RENAME [ SWAP bucketizer.mean $end $step $instant ] BUCKETIZE INTERPOLATE SORT %> <% $scalar <% DROP 'vector' RENAME %> LMAP %> IFTE\n")
+			b.WriteString("'scalar' STORE  <% $scalar TYPEOF 'LIST' != %> <% [ $start $end ] [] [] [] [ $scalar ] MAKEGTS  'vector' RENAME [ SWAP bucketizer.mean $end $step $instant ] BUCKETIZE INTERPOLATE SORT %> <% $scalar <% DROP 'vector' RENAME %> LMAP %> IFTE { '" + ShouldRemoveNameLabel + "' 'true' } SETATTRIBUTES\n")
 		case "year":
 			b.WriteString("DEPTH <% 0 == %> <% \n")
 			b.WriteString("\t NEWGTS $start NaN NaN NaN $start ADDVALUE $end NaN NaN NaN $end ADDVALUE \n")
