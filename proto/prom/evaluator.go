@@ -306,6 +306,7 @@ UNBUCKETIZE
 		mapperPayload.PreWindow = "$range $step MAX -1 *"
 		mapperPayload.PostWindow = "0"
 		mapperPayload.Occurrences = "0"
+		mapperPayload.Suffix = " { '" + core.ShouldRemoveNameLabel + "' 'true' } SETATTRIBUTES \n"
 		node.Payload = mapperPayload
 	}
 }

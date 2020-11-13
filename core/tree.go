@@ -154,6 +154,7 @@ type MapperPayload struct {
 	PreWindow   string
 	PostWindow  string
 	Occurrences string
+	Suffix      string
 }
 
 // ReducerPayload is the payload to reduce GTS' value in the tree

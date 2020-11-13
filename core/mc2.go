@@ -241,6 +241,7 @@ func (n *Node) Write(b *bytes.Buffer) {
 		b.WriteString(" ")
 		b.WriteString(p.Occurrences)
 		b.WriteString(" ] MAP\n")
+		b.WriteString(p.Suffix)
 
 	case AddValuePayload:
 		b.WriteString(p.Timestamp)
