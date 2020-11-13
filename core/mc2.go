@@ -379,6 +379,7 @@ func (n *Node) Write(b *bytes.Buffer) {
 			b.WriteString(p.Args[0] + fixScalar() + " 'QUANTILE' STORE \n" + warpBucketQuantile + "\n" + warpReducerHistogram + "\n")
 			b.WriteString("<% 'equivalenceClass' DEFINED ! %> <%  [ ] 'equivalenceClass' STORE %> IFT \n")
 			b.WriteString("[ SWAP  [ 'le' ] ->SET $equivalenceClass ->SET SWAP DIFFERENCE SET-> $reducer.histogram MACROREDUCER ] REDUCE\n")
+			b.WriteString(" { '" + ShouldRemoveNameLabel + "' 'true' } SETATTRIBUTES \n")
 		case "holt_winters":
 			b.WriteString(" " + p.Args[0] + fixScalar() + " " + p.Args[1] + fixScalar() + "DOUBLEEXPONENTIALSMOOTHING 0 GET\n")
 			b.WriteString("[ SWAP [] op.add ] APPLY\n")
