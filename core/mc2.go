@@ -515,7 +515,11 @@ func (n *Node) Write(b *bytes.Buffer) {
 			b.WriteString("FALSE RESETS\n")
 			b.WriteString("[ SWAP mapper.rate $step $range MAX -1 * 0 $bucketCount 1 - -1 * ] MAP\n")
 		case "resets":
-			b.WriteString("FALSE RESETS\n")
+			b.WriteString("[ SWAP mapper.delta 1 0 0 ] MAP\n")
+			b.WriteString("[ SWAP -1 mapper.min.x 0 0 0 ] MAP\n")
+			b.WriteString("[ SWAP 0 mapper.max.x 0 0 0 ] MAP\n")
+			b.WriteString("[ SWAP mapper.abs 0 0 0 ] MAP\n")
+			b.WriteString("{ '" + ShouldRemoveNameLabel + "' 'true' } SETATTRIBUTES\n")
 		case "round":
 			// When setting to_nearest optionnal param: Divide series per it before rounding it to nearest integer and multiplicate it back by it
 			if len(p.Args) == 1 {
