@@ -96,6 +96,7 @@ type Context struct {
 	HasMapper    bool
 	HasFunction  bool
 	FunctionName string
+	Args         []string
 	IsInstant    bool
 	IsRate       bool
 	hasAbsent    bool

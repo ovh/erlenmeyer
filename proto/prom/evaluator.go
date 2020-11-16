@@ -207,9 +207,10 @@ func (ev *evaluator) evalCall(e *promql.Call, node *core.Node, ctx Context) {
 		}
 
 		switch cfp.Name {
-		case "changes":
+		case "changes", "resets":
 			ctx.HasFunction = true
 			ctx.FunctionName = cfp.Name
+			ctx.Args = cfp.Args
 		default:
 			node.Payload = cfp
 		}
@@ -317,6 +318,7 @@ UNBUCKETIZE
 	} else if ctx.HasFunction {
 		var functionPayload core.FunctionPayload
 		functionPayload.Name = ctx.FunctionName
+		functionPayload.Args = ctx.Args
 		node.Left.Payload = functionPayload
 	}
 	node.Payload = bucketizePayload
