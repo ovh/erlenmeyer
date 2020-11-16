@@ -165,11 +165,11 @@ func (ev *evaluator) evalCall(e *promql.Call, node *core.Node, ctx Context) {
 		case "stddev_over_time":
 			ctx.HasMapper = true
 			ctx.Mapper = "sd"
-			ctx.MapperValue = "true"
+			ctx.MapperValue = "false"
 		case "stdvar_over_time":
 			ctx.HasMapper = true
 			ctx.Mapper = "var"
-			ctx.MapperValue = "true"
+			ctx.MapperValue = "false"
 		}
 	}
 
@@ -310,7 +310,7 @@ UNBUCKETIZE
 			mapperPayload.Constant = ctx.MapperValue
 		}
 		mapperPayload.Mapper = ctx.Mapper
-		mapperPayload.PreWindow = "$range $step MAX -1 *"
+		mapperPayload.PreWindow = "1 s $range 1 s - MAX -1 *"
 		mapperPayload.PostWindow = "0"
 		mapperPayload.Occurrences = "0"
 		mapperPayload.Suffix = " { '" + core.ShouldRemoveNameLabel + "' 'true' } SETATTRIBUTES \n"
@@ -319,6 +319,7 @@ UNBUCKETIZE
 		var functionPayload core.FunctionPayload
 		functionPayload.Name = ctx.FunctionName
 		functionPayload.Args = ctx.Args
+		functionPayload.Prefix = "<% $range $step < %> <% DROP [] %> IFT\n"
 		node.Left.Payload = functionPayload
 	}
 	node.Payload = bucketizePayload

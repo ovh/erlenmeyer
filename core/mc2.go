@@ -288,6 +288,7 @@ func (n *Node) Write(b *bytes.Buffer) {
 		b.WriteString(" ] REDUCE\n")
 
 	case FunctionPayload:
+		b.WriteString(p.Prefix)
 		switch p.Name {
 		case "abs":
 			b.WriteString("[ SWAP mapper.abs 0 0 0 ] MAP { '" + ShouldRemoveNameLabel + "' 'true' } SETATTRIBUTES\n")

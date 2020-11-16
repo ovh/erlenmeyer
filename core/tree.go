@@ -107,6 +107,7 @@ type FunctionPayload struct {
 	ArgTypes     []model.ValueType
 	Args         []string
 	OptionalArgs int
+	Prefix       string
 }
 
 // Context is holding the informations like token, start, end, and so on
