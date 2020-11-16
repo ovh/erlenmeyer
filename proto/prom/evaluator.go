@@ -205,7 +205,14 @@ func (ev *evaluator) evalCall(e *promql.Call, node *core.Node, ctx Context) {
 			cfp.Args = a
 
 		}
-		node.Payload = cfp
+
+		switch cfp.Name {
+		case "changes":
+			ctx.HasFunction = true
+			ctx.FunctionName = cfp.Name
+		default:
+			node.Payload = cfp
+		}
 		if len(e.Args) > 0 {
 			node.Left = core.NewEmptyNode()
 
@@ -233,7 +240,6 @@ func (ev *evaluator) matrixSelector(selector *promql.MatrixSelector, node *core.
 	bucketizePayload.LastBucket = fmt.Sprintf("%v000 ", ctx.End)
 	bucketizePayload.BucketSpan = fmt.Sprintf("%v ", ctx.Step)
 	bucketizePayload.BucketCount = fmt.Sprintf("%v000 %v000 %v 2 * - - %v / TOLONG 1 + ", ctx.End, ctx.Start, ctx.Step, ctx.Step)
-	bucketizePayload.BucketRange = fmt.Sprintf("%v 'range' STORE", selRange)
 	bucketizePayload.PreBucketize = `
 <%
 	DROP 
@@ -275,7 +281,6 @@ UNBUCKETIZE
 
 	node.Left = core.NewEmptyNode()
 	node.Left.Level = node.Level + 1
-	node.Left.Payload = bucketizePayload
 
 	var setName string
 	var hasName bool
@@ -292,6 +297,7 @@ UNBUCKETIZE
 	if selector.Offset.String() != "0s" {
 		fetchPayload.Offset = fmt.Sprintf("%v", selector.Offset.Nanoseconds()/1000)
 	}
+	fetchPayload.BucketRange = fmt.Sprintf("%v 'range' STORE\n", selRange)
 
 	node.Left.Left = core.NewEmptyNode()
 	node.Left.Left.Level = node.Level + 2
@@ -307,8 +313,13 @@ UNBUCKETIZE
 		mapperPayload.PostWindow = "0"
 		mapperPayload.Occurrences = "0"
 		mapperPayload.Suffix = " { '" + core.ShouldRemoveNameLabel + "' 'true' } SETATTRIBUTES \n"
-		node.Payload = mapperPayload
+		node.Left.Payload = mapperPayload
+	} else if ctx.HasFunction {
+		var functionPayload core.FunctionPayload
+		functionPayload.Name = ctx.FunctionName
+		node.Left.Payload = functionPayload
 	}
+	node.Payload = bucketizePayload
 }
 
 func labelMatchersToMapLabels(matrixSelector ...*labels.Matcher) (string, bool, map[string]string) {

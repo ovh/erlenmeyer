@@ -142,6 +142,9 @@ func IsValid(labelName string) bool {
 func (n *Node) Write(b *bytes.Buffer) {
 	switch p := n.Payload.(type) {
 	case FetchPayload:
+		b.WriteString("0 'range' STORE\n")
+		b.WriteString(p.BucketRange)
+
 		b.WriteString("[ $token '")
 		b.WriteString(p.ClassName)
 		b.WriteString("' ")
@@ -162,12 +165,12 @@ func (n *Node) Write(b *bytes.Buffer) {
 		} else {
 
 			if p.Instant {
-				b.WriteString(" " + p.Start + " " + p.End + " ")
+				b.WriteString(" " + p.Start + " $range - " + p.End + " ")
 			} else {
 				if p.Absent {
 					b.WriteString(" " + p.Start + " 15 m - ISO8601")
 				} else {
-					b.WriteString(" " + p.Start + " ISO8601")
+					b.WriteString(" " + p.Start + " $range - ISO8601")
 				}
 				b.WriteString(" " + p.End + " ISO8601")
 			}
@@ -213,12 +216,12 @@ func (n *Node) Write(b *bytes.Buffer) {
 		}
 
 		if p.Absent {
-			b.WriteString(p.BucketRange + " [ SWAP " + p.Op + " " + p.LastBucket + " " + p.BucketSpan + " " + p.BucketCount + " 2 - 15 m " + p.BucketSpan + " / + ] BUCKETIZE\n")
+			b.WriteString(" [ SWAP " + p.Op + " " + p.LastBucket + " " + p.BucketSpan + " " + p.BucketCount + " 2 - 15 m " + p.BucketSpan + " / + ] BUCKETIZE\n")
 			b.WriteString("[ SWAP mapper.last 15 m $step / 0 $instant -1 * ] MAP\n")
-			b.WriteString(p.BucketRange + " [ SWAP " + p.Op + " " + p.LastBucket + " " + p.BucketSpan + " " + p.BucketCount + " 2 - ] BUCKETIZE\n")
+			b.WriteString(" [ SWAP " + p.Op + " " + p.LastBucket + " " + p.BucketSpan + " " + p.BucketCount + " 2 - ] BUCKETIZE\n")
 		} else {
 			b.WriteString(p.PreBucketize + "\n")
-			b.WriteString(p.BucketRange + " [ SWAP " + p.Op + " " + p.LastBucket + " " + p.BucketSpan + " " + p.BucketCount + " 2 - ] BUCKETIZE\n")
+			b.WriteString(" [ SWAP " + p.Op + " " + p.LastBucket + " " + p.BucketSpan + " " + p.BucketCount + " 2 - ] BUCKETIZE\n")
 			b.WriteString(p.Filler + "\n")
 		}
 
@@ -293,11 +296,12 @@ func (n *Node) Write(b *bytes.Buffer) {
 		case "ceil":
 			b.WriteString("UNBUCKETIZE [ SWAP mapper.ceil 0 0 0 ] MAP { '" + ShouldRemoveNameLabel + "' 'true' } SETATTRIBUTES\n")
 		case "changes":
-			// COMPACT will dedup useless values, then we check if lasttick has the same value than penultimate (lasttick is forced by COMPACT), if yes we decrease the size by 1.
-			b.WriteString("COMPACT MARK SWAP <% DUP DUP DUP NAME 'name' STORE LABELS 'l' STORE LASTTICK 'lt' STORE\n")
-			b.WriteString("VALUES 'list' STORE $list SIZE 's' STORE $list $s 1 - GET $list $s 2 - GET\n")
-			b.WriteString("<%  ==  %> <% $s 1 - %> <% $s %> IFTE 'val' STORE NEWGTS $name RENAME $l RELABEL $lt NaN DUP DUP $val SETVALUE \n")
-			b.WriteString("%> FOREACH COUNTTOMARK ->LIST SWAP DROP\n")
+			b.WriteString("[ SWAP mapper.delta 1 0 0 ] MAP \n")
+			b.WriteString("[ SWAP -1 mapper.max.x 0 0 0 ] MAP \n")
+			b.WriteString("[ SWAP 1 mapper.min.x 0 0 0 ] MAP \n")
+			b.WriteString("[ SWAP mapper.abs 0 0 0 ] MAP \n")
+			b.WriteString("[ SWAP mapper.sum 1 s $range $step - 1 s + MAX -1 * 0 0 ] MAP \n")
+			b.WriteString("{ '" + ShouldRemoveNameLabel + "' 'true' } SETATTRIBUTES \n")
 		case "clamp_max":
 			b.WriteString("UNBUCKETIZE [ SWAP " + p.Args[0] + fixScalar() + " mapper.min.x 0 0 0 ] MAP\n")
 			b.WriteString("{ '" + ShouldRemoveNameLabel + "' 'true' } SETATTRIBUTES \n")
@@ -431,7 +435,6 @@ func (n *Node) Write(b *bytes.Buffer) {
 			b.WriteString(p.Args[0] + fixScalar())
 			b.WriteString("PUT RELABEL %> LMAP\n")
 		case "label_replace":
-			log.Warn(p.Args[0])
 			promLabel := strings.Trim(p.Args[0], " [] 'child_labels' STORE \n")
 			if !IsValid(strings.Trim(strings.TrimSpace(promLabel), "\"")) {
 				b.WriteString("'invalid destination label name in label_replace(): ' " + p.Args[0] + " + MSGFAIL\n")
@@ -516,8 +519,8 @@ func (n *Node) Write(b *bytes.Buffer) {
 			b.WriteString("[ SWAP mapper.rate $step $range MAX -1 * 0 $bucketCount 1 - -1 * ] MAP\n")
 		case "resets":
 			b.WriteString("[ SWAP mapper.delta 1 0 0 ] MAP\n")
-			b.WriteString("[ SWAP -1 mapper.min.x 0 0 0 ] MAP\n")
-			b.WriteString("[ SWAP 0 mapper.max.x 0 0 0 ] MAP\n")
+			b.WriteString("[ SWAP -1 mapper.max.x 0 0 0 ] MAP\n")
+			b.WriteString("[ SWAP 0 mapper.min.x 0 0 0 ] MAP\n")
 			b.WriteString("[ SWAP mapper.abs 0 0 0 ] MAP\n")
 			b.WriteString("{ '" + ShouldRemoveNameLabel + "' 'true' } SETATTRIBUTES\n")
 		case "round":

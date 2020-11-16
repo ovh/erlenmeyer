@@ -89,14 +89,16 @@ type prometheusResultResponse struct {
 // Context is holding the informations like token, start, end, and so on
 type Context struct {
 	core.Context
-	Expr        promql.Expr
-	Bucketizer  string
-	Mapper      string
-	MapperValue string
-	HasMapper   bool
-	IsInstant   bool
-	IsRate      bool
-	hasAbsent   bool
+	Expr         promql.Expr
+	Bucketizer   string
+	Mapper       string
+	MapperValue  string
+	HasMapper    bool
+	HasFunction  bool
+	FunctionName string
+	IsInstant    bool
+	IsRate       bool
+	hasAbsent    bool
 }
 
 // QueryRange evaluates an expression query over a range of time:

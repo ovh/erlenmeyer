@@ -59,14 +59,15 @@ func NewEmptyNode() *Node {
 
 // FetchPayload is the payload for the fetch function
 type FetchPayload struct {
-	ClassName string
-	Labels    map[string]string
-	End       string
-	Start     string
-	Step      string
-	Offset    string
-	Absent    bool
-	Instant   bool
+	ClassName   string
+	Labels      map[string]string
+	End         string
+	Start       string
+	Step        string
+	Offset      string
+	BucketRange string
+	Absent      bool
+	Instant     bool
 }
 
 // AggregatePayload represents an aggregation operation on a vector.
@@ -121,7 +122,6 @@ type BucketizePayload struct {
 	LastBucket   string
 	BucketSpan   string
 	BucketCount  string
-	BucketRange  string
 	PreBucketize string
 	Filler       string
 	Op           string
