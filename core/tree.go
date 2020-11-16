@@ -127,7 +127,6 @@ type BucketizePayload struct {
 	Filler       string
 	Op           string
 	Step         string
-	ApplyRate    bool
 	Absent       bool
 }
 

@@ -170,7 +170,7 @@ func (n *Node) Write(b *bytes.Buffer) {
 				if p.Absent {
 					b.WriteString(" " + p.Start + " 15 m - ISO8601")
 				} else {
-					b.WriteString(" " + p.Start + " $range - ISO8601")
+					b.WriteString(" " + p.Start + " $range $step + - ISO8601")
 				}
 				b.WriteString(" " + p.End + " ISO8601")
 			}
@@ -203,12 +203,6 @@ func (n *Node) Write(b *bytes.Buffer) {
 		b.WriteString(" STORE\n")
 
 	case BucketizePayload:
-
-		// In case of a rate, FALSE RESETS needs to be applied BEFORE BUCKETIZE.
-		// If not, bucketizer.mean will create a mean during the false resets
-		if p.ApplyRate {
-			b.WriteString("FALSE RESETS\n")
-		}
 
 		if p.BucketCount == "1" && p.BucketSpan == "0" {
 			b.WriteString("<% $empty ! %>\n")
@@ -370,7 +364,10 @@ func (n *Node) Write(b *bytes.Buffer) {
 			b.WriteString("[ SWAP <%  'mapping_window' STORE  $mapping_window 0 GET  'tick' STORE  $tick TSELEMENTS DUP 0 GET 'year' STORE 1 GET 'month' STORE\n")
 			b.WriteString("$month $year @DAYSINMONTH  'days' STORE $tick NaN NaN NaN $days %> MACROMAPPER 0 0 0 ] MAP { '" + ShouldRemoveNameLabel + "' 'true' } SETATTRIBUTES\n")
 		case "delta":
-			b.WriteString("[ SWAP mapper.delta $step $range MAX -1 * 0 $bucketCount 1 - -1 * ] MAP\n")
+			//b.WriteString("[ SWAP mapper.delta $step $range MAX -1 * 0 $bucketCount 1 - -1 * ] MAP\n")
+			b.WriteString("[ SWAP mapper.todouble 0 0 0 ] MAP\n")
+			b.WriteString("[ SWAP mapper.delta 1 s $range 1 s + MAX -1 * 0 0 ] MAP\n")
+			b.WriteString("{ '" + ShouldRemoveNameLabel + "' 'true' } SETATTRIBUTES\n")
 		case "deriv":
 			b.WriteString("'deriv method is not supported' MSGFAIL")
 			// FIXME
@@ -417,7 +414,9 @@ func (n *Node) Write(b *bytes.Buffer) {
 			b.WriteString("[ SWAP mapper.delta 1 0 $bucketCount 1 - -1 * ] MAP\n")
 		case "increase":
 			b.WriteString("FALSE RESETS\n")
-			b.WriteString("[ SWAP mapper.delta $step $range MAX -1 * 0 $bucketCount 1 - -1 * ] MAP\n")
+			//b.WriteString("[ SWAP mapper.delta $step $range MAX -1 * 0 $bucketCount 1 - -1 * ] MAP\n")
+			b.WriteString("[ SWAP mapper.delta 1 s $range 1 s + MAX -1 * 0 0 ] MAP \n")
+			b.WriteString("{ '" + ShouldRemoveNameLabel + "' 'true' } SETATTRIBUTES\n")
 		case "irate":
 			b.WriteString("[ SWAP mapper.rate 1 0 $bucketCount 1 - -1 * ] MAP\n")
 		case "label_join":
@@ -517,7 +516,9 @@ func (n *Node) Write(b *bytes.Buffer) {
 			b.WriteString("{ '" + ShouldRemoveNameLabel + "' 'true' } SETATTRIBUTES\n")
 		case "rate":
 			b.WriteString("FALSE RESETS\n")
-			b.WriteString("[ SWAP mapper.rate $step $range MAX -1 * 0 $bucketCount 1 - -1 * ] MAP\n")
+			//b.WriteString("[ SWAP mapper.rate $step $range MAX -1 * 0 $bucketCount 1 - -1 * ] MAP\n")
+			b.WriteString("[ SWAP mapper.rate 1 s $range 1 s + MAX -1 * 0 0 ] MAP\n")
+			b.WriteString("{ '" + ShouldRemoveNameLabel + "' 'true' } SETATTRIBUTES\n")
 		case "resets":
 			b.WriteString("[ SWAP mapper.delta 1 0 0 ] MAP\n")
 			b.WriteString("[ SWAP -1 mapper.max.x 0 0 0 ] MAP\n")

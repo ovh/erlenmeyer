@@ -207,7 +207,7 @@ func (ev *evaluator) evalCall(e *promql.Call, node *core.Node, ctx Context) {
 		}
 
 		switch cfp.Name {
-		case "changes", "resets":
+		case "changes", "resets", "delta", "rate", "increase":
 			ctx.HasFunction = true
 			ctx.FunctionName = cfp.Name
 			ctx.Args = cfp.Args
@@ -216,13 +216,6 @@ func (ev *evaluator) evalCall(e *promql.Call, node *core.Node, ctx Context) {
 		}
 		if len(e.Args) > 0 {
 			node.Left = core.NewEmptyNode()
-
-			// In case of a rate, FALSE RESETS needs to be added BEFORE bucketize
-			// ctx is propagating this
-			// Because we are passing ctx as a value, we won't be poisoning the rest of the Tree
-			if strings.Compare(e.Func.Name, "rate") == 0 || strings.Compare(e.Func.Name, "increase") == 0 {
-				ctx.IsRate = true
-			}
 
 			if strings.Compare(e.Func.Name, "absent") == 0 {
 				ctx.hasAbsent = true
@@ -265,10 +258,6 @@ func (ev *evaluator) matrixSelector(selector *promql.MatrixSelector, node *core.
 LMAP 
 UNBUCKETIZE
 	`
-
-	if ctx.IsRate {
-		bucketizePayload.ApplyRate = true
-	}
 
 	var fetchPayload core.FetchPayload
 	if ctx.hasAbsent {
