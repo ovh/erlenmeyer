@@ -146,7 +146,7 @@ func (ev *evaluator) evalCall(e *promql.Call, node *core.Node, ctx Context) {
 		case "quantile_over_time":
 			// Verify in WarpScript, if prom param is valid, otherwise return an error message
 			ctx.HasMapper = true
-			ctx.Mapper = "mean DROP $right 'quantile' STORE <% $quantile 0.0 < $quantile 1.0 > || %> <% 'quantile_over_time expects a number included between [0,1]' MSGFAIL %> IFT $quantile 100.0 * bucketizer.percentile"
+			ctx.Mapper = "mean DROP TODOUBLE 'quantile' STORE <% $quantile 0.0 < $quantile 1.0 > || %> <% 'quantile_over_time expects a number included between [0,1]' MSGFAIL %> IFT $quantile 100.0 * mapper.percentile"
 		case "avg_over_time":
 			ctx.HasMapper = true
 			ctx.Mapper = "mean"
@@ -174,15 +174,13 @@ func (ev *evaluator) evalCall(e *promql.Call, node *core.Node, ctx Context) {
 	}
 
 	if e.Func.Name == "quantile_over_time" {
+		// Compute args expression first
+		cfp.Args = []string{fmt.Sprintf("'%v' ", e.Args[0])}
+		ctx.Args = cfp.Args
 
 		// Prepare left node with quantile_over_time bucketize
 		node.Left = core.NewEmptyNode()
 		ev.eval(e.Args[1], node.Left, ctx)
-
-		// Compute args expression first at right level node
-		node.Left.Right = core.NewEmptyNode()
-		node.Left.Right.Level = node.Level + 1
-		ev.eval(e.Args[0], node.Left.Right, ctx)
 
 	} else if e.Func.Name == "histogram_quantile" {
 		cfp.Args = []string{fmt.Sprintf("%v ", e.Args[0])}
@@ -303,6 +301,9 @@ UNBUCKETIZE
 		mapperPayload.PostWindow = "0"
 		mapperPayload.Occurrences = "0"
 		mapperPayload.Suffix = " { '" + core.ShouldRemoveNameLabel + "' 'true' } SETATTRIBUTES \n"
+		if len(ctx.Args) > 0 {
+			mapperPayload.Constant = mapperPayload.Constant + ctx.Args[0]
+		}
 		node.Left.Payload = mapperPayload
 	} else if ctx.HasFunction {
 		var functionPayload core.FunctionPayload
