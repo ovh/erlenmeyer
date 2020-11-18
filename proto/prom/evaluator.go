@@ -235,8 +235,13 @@ func (ev *evaluator) matrixSelector(selector *promql.MatrixSelector, node *core.
 	selRange := fmt.Sprint(selector.Range.Nanoseconds() / 1000)
 	bucketizePayload.Op = ctx.Bucketizer
 	bucketizePayload.LastBucket = fmt.Sprintf("%v000 ", ctx.End)
-	bucketizePayload.BucketSpan = fmt.Sprintf("%v ", ctx.Step)
-	bucketizePayload.BucketCount = fmt.Sprintf("%v000 %v000 %v 2 * - - %v / TOLONG 1 + ", ctx.End, ctx.Start, ctx.Step, ctx.Step)
+	if ctx.IsInstant {
+		bucketizePayload.BucketCount = "1"
+		bucketizePayload.BucketSpan = "0"
+	} else {
+		bucketizePayload.BucketCount = fmt.Sprintf("%v000 %v000 %v 2 * - - %v / TOLONG 1 + ", ctx.End, ctx.Start, ctx.Step, ctx.Step)
+		bucketizePayload.BucketSpan = fmt.Sprintf("%v ", ctx.Step)
+	}
 	bucketizePayload.PreBucketize = `
 <%
 	DROP 
@@ -284,9 +289,14 @@ UNBUCKETIZE
 	}
 	fetchPayload.ClassName = string(selector.Name)
 
-	fetchPayload.Start = fmt.Sprintf("%v000 %v 2 * - ", ctx.Start, ctx.Step) + fmt.Sprintf("%v", selector.Offset.Nanoseconds()/1000) + " - "
-	fetchPayload.End = fmt.Sprintf("%v000 ", ctx.End)
-	fetchPayload.Step = ctx.Step
+	if ctx.IsInstant {
+		fetchPayload.End = fmt.Sprintf("%v000 ", ctx.End) + fmt.Sprintf("%v", selector.Offset.Nanoseconds()/1000) + " - ISO8601"
+		fetchPayload.Start = fmt.Sprintf("%v000 ", ctx.End) + fmt.Sprintf("%v", selector.Offset.Nanoseconds()/1000) + " -  $range - ISO8601"
+	} else {
+		fetchPayload.Start = fmt.Sprintf("%v000 %v 2 * - ", ctx.Start, ctx.Step) + fmt.Sprintf("%v", selector.Offset.Nanoseconds()/1000) + " - "
+		fetchPayload.End = fmt.Sprintf("%v000 ", ctx.End)
+		fetchPayload.Step = ctx.Step
+	}
 	if selector.Offset.String() != "0s" {
 		fetchPayload.Offset = fmt.Sprintf("%v", selector.Offset.Nanoseconds()/1000)
 	}

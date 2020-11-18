@@ -163,9 +163,8 @@ func (n *Node) Write(b *bytes.Buffer) {
 				b.WriteString(" " + p.End + " " + p.Start + " - ")
 			}
 		} else {
-
 			if p.Instant {
-				b.WriteString(" " + p.Start + " $range - " + p.End + " ")
+				b.WriteString(" " + p.Start + " " + p.End + " ")
 			} else {
 				if p.Absent {
 					b.WriteString(" " + p.Start + " 15 m - ISO8601")
@@ -215,7 +214,7 @@ func (n *Node) Write(b *bytes.Buffer) {
 			b.WriteString(" [ SWAP " + p.Op + " " + p.LastBucket + " " + p.BucketSpan + " " + p.BucketCount + " 2 - ] BUCKETIZE\n")
 		} else {
 			b.WriteString(p.PreBucketize + "\n")
-			b.WriteString(" [ SWAP " + p.Op + " " + p.LastBucket + " " + p.BucketSpan + " " + p.BucketCount + " 2 - ] BUCKETIZE\n")
+			b.WriteString(" [ SWAP " + p.Op + " " + p.LastBucket + " " + p.BucketSpan + " " + p.BucketCount + " 2 - ABS ] BUCKETIZE\n")
 			b.WriteString(p.Filler + "\n")
 		}
 
