@@ -1125,7 +1125,7 @@ var binaryExprEquivalences = map[string]binaryExprEquivalence{
 	},
 	"/": {
 		ScalarToScalar: " / ",
-		VectorToScalar: "[ SWAP 1 $right TODOUBLE / mapper.mul 0 0 0 ] MAP\n",
+		VectorToScalar: "[ SWAP 1.0 $right TODOUBLE / mapper.mul 0 0 0 ] MAP\n",
 		ScalarToVector: warpHashLabels + " [ SWAP DUP [ SWAP $left mapper.replace 0 0 0 ] MAP @HASHLABELS  SWAP @HASHLABELS $hashlabel op.div ]  APPLY { 'hash_945fa9bc3027d7025e3' '' } RELABEL\n",
 		VectorToVector: "[ SWAP  DUP 0 GET @HASHLABELS '%2B.todiv' RENAME SWAP 1 GET @HASHLABELS $hashlabel op.div ]  APPLY { 'hash_945fa9bc3027d7025e3' '' } RELABEL \n",
 		GroupLeft:      groupOnPer("$left", "op.div", true),
