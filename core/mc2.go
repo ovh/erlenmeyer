@@ -656,7 +656,7 @@ func (n *Node) Write(b *bytes.Buffer) {
 			b.WriteString("\t 'gts_values' STORE NEWGTS $start NaN NaN NaN $gts_values ADDVALUE $end NaN NaN NaN $gts_values ADDVALUE \n")
 			b.WriteString("\t [ SWAP bucketizer.last $end $step 0 ] BUCKETIZE FILLPREVIOUS FILLNEXT \n")
 			b.WriteString("%> IFT \n")
-			b.WriteString(" [ SWAP -1 mapper.mul 0 0 0 ] MAP\n")
+			b.WriteString(" [ SWAP -1.0 mapper.mul 0 0 0 ] MAP\n")
 			b.WriteString("\t { '" + ShouldRemoveNameLabel + "' 'true' } SETATTRIBUTES \n")
 		}
 	default:
@@ -1111,7 +1111,7 @@ var binaryExprEquivalences = map[string]binaryExprEquivalence{
 	"-": {
 		ScalarToScalar: " - ",
 		VectorToScalar: "[ SWAP 0 $right TODOUBLE - mapper.add 0 0 0 ] MAP\n",
-		ScalarToVector: "[ SWAP [ SWAP -1 mapper.mul 0 0 0 ] MAP $left TODOUBLE mapper.add 0 0 0 ] MAP\n",
+		ScalarToVector: "[ SWAP [ SWAP -1.0 mapper.mul 0 0 0 ] MAP $left TODOUBLE mapper.add 0 0 0 ] MAP\n",
 		VectorToVector: "[ SWAP  DUP 0 GET @HASHLABELS '%2B.tosub' RENAME SWAP 1 GET @HASHLABELS $hashlabel op.sub ]  APPLY { 'hash_945fa9bc3027d7025e3' '' } RELABEL \n",
 		GroupLeft:      groupOnPer("$left", "op.sub", true),
 		GroupRight:     groupOnPer("$right", "op.sub", true),
