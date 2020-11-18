@@ -384,8 +384,10 @@ func (n *Node) Write(b *bytes.Buffer) {
 			b.WriteString("[ SWAP  [ 'le' ] ->SET $equivalenceClass ->SET SWAP DIFFERENCE SET-> $reducer.histogram MACROREDUCER ] REDUCE\n")
 			b.WriteString(" { '" + ShouldRemoveNameLabel + "' 'true' } SETATTRIBUTES \n")
 		case "holt_winters":
-			b.WriteString(" " + p.Args[0] + fixScalar() + " " + p.Args[1] + fixScalar() + "DOUBLEEXPONENTIALSMOOTHING 0 GET\n")
-			b.WriteString("[ SWAP [] op.add ] APPLY\n")
+			// DOUBLEEXPONENTIALSMOOTHING delete first series data point, fill each series with its first one
+			b.WriteString("SORT <% DROP 'series' STORE $series FIRSTTICK 'ftick' STORE $series $ftick $step -  NaN NaN NaN $series VALUES 0 GET  ADDVALUE %> LMAP\n")
+			b.WriteString(" " + p.Args[0] + fixScalar() + " " + p.Args[1] + fixScalar() + "DOUBLEEXPONENTIALSMOOTHING NULL PARTITION [] SWAP \n")
+			b.WriteString("<% SWAP DROP [ SWAP NULL op.add ] APPLY + %> FOREACH FLATTEN\n")
 			b.WriteString(" { '" + ShouldRemoveNameLabel + "' 'true' } SETATTRIBUTES \n")
 		case "hour":
 			b.WriteString("DEPTH <% 0 == %> <% \n")
