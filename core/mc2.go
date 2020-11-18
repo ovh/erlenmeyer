@@ -386,6 +386,7 @@ func (n *Node) Write(b *bytes.Buffer) {
 		case "holt_winters":
 			b.WriteString(" " + p.Args[0] + fixScalar() + " " + p.Args[1] + fixScalar() + "DOUBLEEXPONENTIALSMOOTHING 0 GET\n")
 			b.WriteString("[ SWAP [] op.add ] APPLY\n")
+			b.WriteString(" { '" + ShouldRemoveNameLabel + "' 'true' } SETATTRIBUTES \n")
 		case "hour":
 			b.WriteString("DEPTH <% 0 == %> <% \n")
 			b.WriteString("\t NEWGTS $start NaN NaN NaN $start ADDVALUE $end NaN NaN NaN $end ADDVALUE \n")
@@ -411,14 +412,17 @@ func (n *Node) Write(b *bytes.Buffer) {
 			b.WriteString("%> IFTE \n")
 			b.WriteString("{ '" + ShouldRemoveNameLabel + "' 'true' } SETATTRIBUTES\n")
 		case "idelta":
-			b.WriteString("[ SWAP mapper.delta 1 0 $bucketCount 1 - -1 * ] MAP\n")
+			b.WriteString("[ SWAP mapper.delta 1 0 0 ] MAP\n")
+			b.WriteString("{ '" + ShouldRemoveNameLabel + "' 'true' } SETATTRIBUTES\n")
 		case "increase":
 			b.WriteString("FALSE RESETS\n")
 			//b.WriteString("[ SWAP mapper.delta $step $range MAX -1 * 0 $bucketCount 1 - -1 * ] MAP\n")
 			b.WriteString("[ SWAP mapper.delta 1 s $range 1 s + MAX -1 * 0 0 ] MAP \n")
 			b.WriteString("{ '" + ShouldRemoveNameLabel + "' 'true' } SETATTRIBUTES\n")
 		case "irate":
-			b.WriteString("[ SWAP mapper.rate 1 0 $bucketCount 1 - -1 * ] MAP\n")
+			b.WriteString("FALSE RESETS\n")
+			b.WriteString("[ SWAP mapper.rate 1 0 0 ] MAP\n")
+			b.WriteString("{ '" + ShouldRemoveNameLabel + "' 'true' } SETATTRIBUTES\n")
 		case "label_join":
 			b.WriteString("<% DROP DUP LABELS 'labels' STORE ")
 			b.WriteString("[ ")
@@ -737,7 +741,10 @@ func convertAggregate(b *bytes.Buffer, p AggregatePayload) {
 		}
 
 		if p.Op == "quantile" {
-			b.WriteString(" <% " + p.Param + " 0.0 < " + p.Param + " 1.0 > || %> <% 'quantile expects a number included between [0,1]' MSGFAIL %> IFT " + p.Param + " 100.0 * ")
+			b.WriteString(p.Param + " 'quantile' STORE\n")
+			b.WriteString("<% $quantile 0.0 < %> <% [ ROT -1.0 0.0 / mapper.replace 0 0 0 ] MAP SWAP 0.5 'quantile' STORE %> IFT\n")
+			b.WriteString("<% $quantile 1.0 > %> <% [ ROT 1.0 0.0 / mapper.replace 0 0 0 ] MAP SWAP 0.5 'quantile' STORE %> IFT\n")
+			b.WriteString(" $quantile 100.0 * ")
 		}
 
 		b.WriteString(reducer)

@@ -146,7 +146,12 @@ func (ev *evaluator) evalCall(e *promql.Call, node *core.Node, ctx Context) {
 		case "quantile_over_time":
 			// Verify in WarpScript, if prom param is valid, otherwise return an error message
 			ctx.HasMapper = true
-			ctx.Mapper = "mean DROP TODOUBLE 'quantile' STORE <% $quantile 0.0 < $quantile 1.0 > || %> <% 'quantile_over_time expects a number included between [0,1]' MSGFAIL %> IFT $quantile 100.0 * mapper.percentile"
+			ctx.Mapper = `mean DROP
+			TODOUBLE 'quantile' STORE
+			<% $quantile 0.0 < %> <% [ SWAP -1.0 0.0 / mapper.replace 0 0 0 ] MAP 0.5 'quantile' STORE %> IFT 
+			<% $quantile 1.0 > %> <% [ SWAP 1.0 0.0 / mapper.replace 0 0 0 ] MAP 0.5 'quantile' STORE %> IFT
+			$quantile 100.0 * mapper.percentile
+			`
 		case "avg_over_time":
 			ctx.HasMapper = true
 			ctx.Mapper = "mean"
@@ -205,7 +210,7 @@ func (ev *evaluator) evalCall(e *promql.Call, node *core.Node, ctx Context) {
 		}
 
 		switch cfp.Name {
-		case "changes", "resets", "delta", "rate", "increase":
+		case "changes", "resets", "delta", "rate", "increase", "idelta", "irate":
 			ctx.HasFunction = true
 			ctx.FunctionName = cfp.Name
 			ctx.Args = cfp.Args
