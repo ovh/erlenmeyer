@@ -380,8 +380,15 @@ func (n *Node) Write(b *bytes.Buffer) {
 			b.WriteString("UNBUCKETIZE [ SWAP mapper.floor 0 0 0 ] MAP { '" + ShouldRemoveNameLabel + "' 'true' } SETATTRIBUTES\n")
 		case "histogram_quantile":
 			b.WriteString(p.Args[0] + fixScalar() + " 'QUANTILE' STORE \n" + warpBucketQuantile + "\n" + warpReducerHistogram + "\n")
-			b.WriteString("<% 'equivalenceClass' DEFINED ! %> <%  [ ] 'equivalenceClass' STORE %> IFT \n")
-			b.WriteString("[ SWAP  [ 'le' ] ->SET $equivalenceClass ->SET SWAP DIFFERENCE SET-> $reducer.histogram MACROREDUCER ] REDUCE\n")
+			b.WriteString("[] SWAP DUP ROT SWAP <% LABELS KEYLIST + %> FOREACH FLATTEN UNIQUE ->SET [ 'le' ] ->SET DIFFERENCE SET-> 'notLE' STORE\n")
+			b.WriteString("<% $QUANTILE 0.0 < $QUANTILE 1.0 > || %>\n")
+			b.WriteString("<% [ SWAP $notLE reducer.max ] REDUCE\n")
+			b.WriteString("  <% $QUANTILE 0.0 < %> <% [ SWAP -1.0 0.0 / mapper.replace 0 0 0 ] MAP 0.5 'QUANTILE' STORE %> IFT\n")
+			b.WriteString("  <% $QUANTILE 1.0 > %> <% [ SWAP 1.0 0.0 / mapper.replace 0 0 0 ] MAP 0.5 'QUANTILE' STORE %> IFT\n")
+			b.WriteString("%> <%\n")
+			b.WriteString("  <% 'equivalenceClass' DEFINED ! %> <%  [ ] 'equivalenceClass' STORE %> IFT \n")
+			b.WriteString("  [ SWAP $notLE $reducer.histogram MACROREDUCER ] REDUCE\n")
+			b.WriteString("%> IFTE\n")
 			b.WriteString(" { '" + ShouldRemoveNameLabel + "' 'true' } SETATTRIBUTES \n")
 		case "holt_winters":
 			// DOUBLEEXPONENTIALSMOOTHING delete first series data point, fill each series with its first one
