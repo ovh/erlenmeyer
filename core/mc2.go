@@ -477,7 +477,7 @@ func (n *Node) Write(b *bytes.Buffer) {
 			b.WriteString("[ SWAP <% 'mappingWindow' STORE $mappingWindow 0 GET 'tick' STORE $mappingWindow 3 GET [] [] [] $mappingWindow 7 GET MAKEGTS DUP <% VALUES SIZE 2 >= %> \n")
 
 			// Compute predict_linear
-			b.WriteString("<% LR 'beta' STORE 'alpha' STORE $tick NaN NaN NaN $alpha $tick " + p.Args[0] + fixScalar() + "+ $beta * + %> <% DROP $mappingWindow 0 GET NaN NaN NaN NULL %> IFTE %> MACROMAPPER $range $step / 0 $instant -1 * ] MAP\n")
+			b.WriteString("<% LR 'beta' STORE 'alpha' STORE $tick NaN NaN NaN $alpha $tick $end $start - +" + p.Args[0] + fixScalar() + "+ $beta * + %> <% DROP $mappingWindow 0 GET NaN NaN NaN NULL %> IFTE %> MACROMAPPER $range $step / 0 $instant -1 * ] MAP\n")
 
 			b.WriteString("{ '" + ShouldRemoveNameLabel + "' 'true' } SETATTRIBUTES \n")
 		case "minute":
