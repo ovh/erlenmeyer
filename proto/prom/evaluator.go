@@ -210,7 +210,7 @@ func (ev *evaluator) evalCall(e *promql.Call, node *core.Node, ctx Context) {
 		}
 
 		switch cfp.Name {
-		case "changes", "resets", "delta", "rate", "increase", "idelta", "irate":
+		case "changes", "resets", "delta", "rate", "increase", "idelta", "irate", "predict_linear":
 			ctx.HasFunction = true
 			ctx.FunctionName = cfp.Name
 			ctx.Args = cfp.Args

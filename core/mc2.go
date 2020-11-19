@@ -379,7 +379,10 @@ func (n *Node) Write(b *bytes.Buffer) {
 			b.WriteString("UNBUCKETIZE [ SWAP mapper.floor 0 0 0 ] MAP { '" + ShouldRemoveNameLabel + "' 'true' } SETATTRIBUTES\n")
 		case "histogram_quantile":
 			b.WriteString(p.Args[0] + fixScalar() + " 'QUANTILE' STORE \n" + warpBucketQuantile + "\n" + warpReducerHistogram + "\n")
-			b.WriteString("[] SWAP DUP ROT SWAP <% LABELS KEYLIST + %> FOREACH FLATTEN UNIQUE ->SET [ 'le' ] ->SET DIFFERENCE SET-> 'notLE' STORE\n")
+			// Drop series when le label is missing
+			b.WriteString("[] SWAP <% DUP LABELS KEYLIST <% 'le' CONTAINS ! %> <% DROP DROP %> <% DROP + %> IFTE %> FOREACH\n")
+			b.WriteString("[] SWAP DUP ROT SWAP <% LABELS KEYLIST + %> FOREACH FLATTEN UNIQUE \n")
+			b.WriteString("->SET [ 'le' ] ->SET DIFFERENCE SET-> 'notLE' STORE\n")
 			b.WriteString("<% $QUANTILE 0.0 < $QUANTILE 1.0 > || %>\n")
 			b.WriteString("<% [ SWAP $notLE reducer.max ] REDUCE\n")
 			b.WriteString("  <% $QUANTILE 0.0 < %> <% [ SWAP -1.0 0.0 / mapper.replace 0 0 0 ] MAP 0.5 'QUANTILE' STORE %> IFT\n")
@@ -476,6 +479,7 @@ func (n *Node) Write(b *bytes.Buffer) {
 			// Compute predict_linear
 			b.WriteString("<% LR 'beta' STORE 'alpha' STORE $tick NaN NaN NaN $alpha $tick " + p.Args[0] + fixScalar() + "+ $beta * + %> <% DROP $mappingWindow 0 GET NaN NaN NaN NULL %> IFTE %> MACROMAPPER $range $step / 0 $instant -1 * ] MAP\n")
 
+			b.WriteString("{ '" + ShouldRemoveNameLabel + "' 'true' } SETATTRIBUTES \n")
 		case "minute":
 			b.WriteString("DEPTH <% 0 == %> <% \n")
 			b.WriteString("\t NEWGTS $start NaN NaN NaN $start ADDVALUE $end NaN NaN NaN $end ADDVALUE \n")
