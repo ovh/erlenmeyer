@@ -143,6 +143,7 @@ func (n *Node) Write(b *bytes.Buffer) {
 	switch p := n.Payload.(type) {
 	case FetchPayload:
 		b.WriteString("0 'range' STORE\n")
+		b.WriteString("0 'step' CSTORE\n")
 		b.WriteString(p.BucketRange)
 
 		b.WriteString("[ $token '")
