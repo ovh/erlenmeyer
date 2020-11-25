@@ -209,12 +209,12 @@ func (n *Node) Write(b *bytes.Buffer) {
 		}
 
 		if p.Absent {
-			b.WriteString(" [ SWAP " + p.Op + " " + p.LastBucket + " " + p.BucketSpan + " " + p.BucketCount + " 2 - 15 m " + p.BucketSpan + " / + ] BUCKETIZE\n")
+			b.WriteString(" [ SWAP " + p.Op + " " + p.LastBucket + " " + p.BucketSpan + " " + p.BucketCount + " 15 m " + p.BucketSpan + " / + ] BUCKETIZE\n")
 			b.WriteString("[ SWAP mapper.last 15 m $step / 0 $instant -1 * ] MAP\n")
-			b.WriteString(" [ SWAP " + p.Op + " " + p.LastBucket + " " + p.BucketSpan + " " + p.BucketCount + " 2 - ] BUCKETIZE\n")
+			b.WriteString(" [ SWAP " + p.Op + " " + p.LastBucket + " " + p.BucketSpan + " " + p.BucketCount + " ] BUCKETIZE\n")
 		} else {
 			b.WriteString(p.PreBucketize + "\n")
-			b.WriteString(" [ SWAP " + p.Op + " " + p.LastBucket + " " + p.BucketSpan + " " + p.BucketCount + " 2 - ABS ] BUCKETIZE\n")
+			b.WriteString(" [ SWAP " + p.Op + " " + p.LastBucket + " " + p.BucketSpan + " " + p.BucketCount + " ] BUCKETIZE\n")
 			b.WriteString(p.Filler + "\n")
 		}
 

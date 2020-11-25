@@ -239,7 +239,7 @@ func (ev *evaluator) matrixSelector(selector *promql.MatrixSelector, node *core.
 		bucketizePayload.BucketCount = "1"
 		bucketizePayload.BucketSpan = "0"
 	} else {
-		bucketizePayload.BucketCount = fmt.Sprintf("%v000 %v000 %v 2 * - - %v / TOLONG 1 + ", ctx.End, ctx.Start, ctx.Step, ctx.Step)
+		bucketizePayload.BucketCount = fmt.Sprintf("%v000 %v000 %v 2 * - - %v / TOLONG 1 + 2 - ABS", ctx.End, ctx.Start, ctx.Step, ctx.Step)
 		bucketizePayload.BucketSpan = fmt.Sprintf("%v ", ctx.Step)
 	}
 	bucketizePayload.PreBucketize = `
@@ -405,7 +405,7 @@ func (ev *evaluator) vectorSelector(selector *promql.VectorSelector, node *core.
 		bucketizePayload.LastBucket = fmt.Sprintf("%v000 ", ctx.End)
 		bucketizePayload.BucketSpan = fmt.Sprintf("%v ", ctx.Step)
 
-		bucketizePayload.BucketCount = fmt.Sprintf("%v000 %v000 %v 2 * -  - %v / TOLONG 1 + ", ctx.End, ctx.Start, ctx.Step, ctx.Step)
+		bucketizePayload.BucketCount = fmt.Sprintf("%v000 %v000 %v 2 * -  - %v / TOLONG 1 + 2 - ABS", ctx.End, ctx.Start, ctx.Step, ctx.Step)
 		bucketizePayload.PreBucketize = `
 <%
 	DROP 
