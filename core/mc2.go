@@ -450,7 +450,7 @@ func (n *Node) Write(b *bytes.Buffer) {
 			b.WriteString(p.Args[0] + fixScalar())
 			b.WriteString("PUT RELABEL %> LMAP\n")
 		case "label_replace":
-			promLabel := strings.Trim(p.Args[0], " [] 'child_labels' STORE \n")
+			promLabel := strings.TrimPrefix(p.Args[0], " [] 'child_labels' STORE \n")
 			if !IsValid(strings.Trim(strings.TrimSpace(promLabel), "\"")) {
 				b.WriteString("'invalid destination label name in label_replace(): ' " + p.Args[0] + " + MSGFAIL\n")
 			}
