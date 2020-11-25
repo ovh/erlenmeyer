@@ -60,8 +60,14 @@ func (ev *evaluator) eval(expr promql.Expr, node *core.Node, ctx Context) {
 
 		node.Left = lhs
 		node.Left.Level = node.Level + 1
+		if vm != nil {
+			node.Left.ChildLabels = vm.Include
+		}
 		node.Right = rhs
 		node.Right.Level = node.Level + 1
+		if vm != nil {
+			node.Left.ChildLabels = vm.Include
+		}
 
 		ev.eval(e.LHS, lhs, ctx)
 		ev.eval(e.RHS, rhs, ctx)
@@ -70,6 +76,7 @@ func (ev *evaluator) eval(expr promql.Expr, node *core.Node, ctx Context) {
 			Op:             fmt.Sprintf("%+v", e.Op),
 			FilteredLabels: make([]string, 0),
 			IncludeLabels:  make([]string, 0),
+			ReturnBool:     e.ReturnBool,
 		}
 
 		if vm != nil {
@@ -80,6 +87,7 @@ func (ev *evaluator) eval(expr promql.Expr, node *core.Node, ctx Context) {
 				FilteredLabels: vm.MatchingLabels,
 				IncludeLabels:  vm.Include,
 				Card:           vm.Card.String(),
+				ReturnBool:     e.ReturnBool,
 			}
 		}
 
@@ -112,6 +120,16 @@ func (ev *evaluator) eval(expr promql.Expr, node *core.Node, ctx Context) {
 		node.Payload = core.NumberLiteralPayload{
 			Value: e.String(),
 		}
+
+	case *promql.UnaryExpr:
+		node.Payload = core.UnaryExprPayload{
+			Op: e.Op.String(),
+		}
+		lhs := core.NewEmptyNode()
+		node.Left = lhs
+
+		ev.eval(e.Expr, lhs, ctx)
+
 	default:
 		// FIXME:Flush into a GTS
 		log.Errorf(fmt.Sprintf("Type %T is not handled", expr))
@@ -128,7 +146,12 @@ func (ev *evaluator) evalCall(e *promql.Call, node *core.Node, ctx Context) {
 		case "quantile_over_time":
 			// Verify in WarpScript, if prom param is valid, otherwise return an error message
 			ctx.HasMapper = true
-			ctx.Mapper = "mean DROP $right 'quantile' STORE <% $quantile 0.0 < $quantile 1.0 > || %> <% 'quantile_over_time expects a number included between [0,1]' MSGFAIL %> IFT $quantile 100.0 * bucketizer.percentile"
+			ctx.Mapper = `mean DROP
+			TODOUBLE 'quantile' STORE
+			<% $quantile 0.0 < %> <% [ SWAP -1.0 0.0 / mapper.replace 0 0 0 ] MAP 0.5 'quantile' STORE %> IFT 
+			<% $quantile 1.0 > %> <% [ SWAP 1.0 0.0 / mapper.replace 0 0 0 ] MAP 0.5 'quantile' STORE %> IFT
+			$quantile 100.0 * mapper.percentile
+			`
 		case "avg_over_time":
 			ctx.HasMapper = true
 			ctx.Mapper = "mean"
@@ -147,24 +170,22 @@ func (ev *evaluator) evalCall(e *promql.Call, node *core.Node, ctx Context) {
 		case "stddev_over_time":
 			ctx.HasMapper = true
 			ctx.Mapper = "sd"
-			ctx.MapperValue = "true"
+			ctx.MapperValue = "false"
 		case "stdvar_over_time":
 			ctx.HasMapper = true
 			ctx.Mapper = "var"
-			ctx.MapperValue = "true"
+			ctx.MapperValue = "false"
 		}
 	}
 
 	if e.Func.Name == "quantile_over_time" {
+		// Compute args expression first
+		cfp.Args = []string{fmt.Sprintf("'%v' ", e.Args[0])}
+		ctx.Args = cfp.Args
 
 		// Prepare left node with quantile_over_time bucketize
 		node.Left = core.NewEmptyNode()
 		ev.eval(e.Args[1], node.Left, ctx)
-
-		// Compute args expression first at right level node
-		node.Left.Right = core.NewEmptyNode()
-		node.Left.Right.Level = node.Level + 1
-		ev.eval(e.Args[0], node.Left.Right, ctx)
 
 	} else if e.Func.Name == "histogram_quantile" {
 		cfp.Args = []string{fmt.Sprintf("%v ", e.Args[0])}
@@ -187,16 +208,17 @@ func (ev *evaluator) evalCall(e *promql.Call, node *core.Node, ctx Context) {
 			cfp.Args = a
 
 		}
-		node.Payload = cfp
+
+		switch cfp.Name {
+		case "changes", "resets", "delta", "rate", "increase", "idelta", "irate", "predict_linear":
+			ctx.HasFunction = true
+			ctx.FunctionName = cfp.Name
+			ctx.Args = cfp.Args
+		default:
+			node.Payload = cfp
+		}
 		if len(e.Args) > 0 {
 			node.Left = core.NewEmptyNode()
-
-			// In case of a rate, FALSE RESETS needs to be added BEFORE bucketize
-			// ctx is propagating this
-			// Because we are passing ctx as a value, we won't be poisoning the rest of the Tree
-			if strings.Compare(e.Func.Name, "rate") == 0 || strings.Compare(e.Func.Name, "increase") == 0 {
-				ctx.IsRate = true
-			}
 
 			if strings.Compare(e.Func.Name, "absent") == 0 {
 				ctx.hasAbsent = true
@@ -212,20 +234,30 @@ func (ev *evaluator) matrixSelector(selector *promql.MatrixSelector, node *core.
 	var bucketizePayload core.BucketizePayload
 	selRange := fmt.Sprint(selector.Range.Nanoseconds() / 1000)
 	bucketizePayload.Op = ctx.Bucketizer
-	bucketizePayload.LastBucket = fmt.Sprintf("%v000 ", ctx.End) + fmt.Sprintf("%v", selector.Offset.Nanoseconds()/1000) + " - "
-	bucketizePayload.BucketSpan = fmt.Sprintf("%v ", ctx.Step)
-	bucketizePayload.BucketCount = fmt.Sprintf("%v000 %v000 %v 2 * - - %v / TOLONG 1 + ", ctx.End, ctx.Start, ctx.Step, ctx.Step)
-	bucketizePayload.BucketRange = fmt.Sprintf("%v 'range' STORE", selRange)
+	bucketizePayload.LastBucket = fmt.Sprintf("%v000 ", ctx.End)
+	if ctx.IsInstant {
+		bucketizePayload.BucketCount = "1"
+		bucketizePayload.BucketSpan = "0"
+	} else {
+		bucketizePayload.BucketCount = fmt.Sprintf("%v000 %v000 %v 2 * - - %v / TOLONG 1 + 2 - ABS", ctx.End, ctx.Start, ctx.Step, ctx.Step)
+		bucketizePayload.BucketSpan = fmt.Sprintf("%v ", ctx.Step)
+	}
 	bucketizePayload.PreBucketize = `
 <%
 	DROP 
-	` + viper.GetString("prometheus.fillprevious.period") + `
+	` + viper.GetString("prometheus.fillprevious.period") + ` DUP 'FILL_PREVIOUS_PERIOD' STORE
     1 'splits_945fa9bc3027d7025e3' TIMESPLIT 
     <% 
         DROP
-        DUP LASTTICK 'lt' STORE
-        DUP FIRSTTICK 'ft' STORE
-        [ SWAP bucketizer.last $lt $step $lt $ft - $step / TOLONG 1 + ] BUCKETIZE FILLPREVIOUS 0 GET
+		DUP LASTTICK 'lt' STORE
+		<%
+            $lt $end $FILL_PREVIOUS_PERIOD - <=
+        %>
+        <%
+        	DUP FIRSTTICK 'ft' STORE
+			[ SWAP bucketizer.last $lt $step $lt $ft - $step / TOLONG 1 + ] BUCKETIZE FILLPREVIOUS 0 GET
+		%>
+		IFT
         { 'splits_945fa9bc3027d7025e3' '' } RELABEL
     %>
     LMAP
@@ -234,10 +266,6 @@ func (ev *evaluator) matrixSelector(selector *promql.MatrixSelector, node *core.
 LMAP 
 UNBUCKETIZE
 	`
-
-	if ctx.IsRate {
-		bucketizePayload.ApplyRate = true
-	}
 
 	var fetchPayload core.FetchPayload
 	if ctx.hasAbsent {
@@ -251,7 +279,6 @@ UNBUCKETIZE
 
 	node.Left = core.NewEmptyNode()
 	node.Left.Level = node.Level + 1
-	node.Left.Payload = bucketizePayload
 
 	var setName string
 	var hasName bool
@@ -262,12 +289,18 @@ UNBUCKETIZE
 	}
 	fetchPayload.ClassName = string(selector.Name)
 
-	fetchPayload.Start = fmt.Sprintf("%v000 %v 2 * - ", ctx.Start, ctx.Step) + fmt.Sprintf("%v", selector.Offset.Nanoseconds()/1000) + " - "
-	fetchPayload.End = fmt.Sprintf("%v000 ", ctx.End) + fmt.Sprintf("%v", selector.Offset.Nanoseconds()/1000) + " - "
-	fetchPayload.Step = ctx.Step
+	if ctx.IsInstant {
+		fetchPayload.End = fmt.Sprintf("%v000 ", ctx.End) + fmt.Sprintf("%v", selector.Offset.Nanoseconds()/1000) + " - ISO8601"
+		fetchPayload.Start = fmt.Sprintf("%v000 ", ctx.End) + fmt.Sprintf("%v", selector.Offset.Nanoseconds()/1000) + " -  $range - ISO8601"
+	} else {
+		fetchPayload.Start = fmt.Sprintf("%v000 %v 2 * - ", ctx.Start, ctx.Step) + fmt.Sprintf("%v", selector.Offset.Nanoseconds()/1000) + " - "
+		fetchPayload.End = fmt.Sprintf("%v000 ", ctx.End)
+		fetchPayload.Step = ctx.Step
+	}
 	if selector.Offset.String() != "0s" {
 		fetchPayload.Offset = fmt.Sprintf("%v", selector.Offset.Nanoseconds()/1000)
 	}
+	fetchPayload.BucketRange = fmt.Sprintf("%v 'range' STORE\n", selRange)
 
 	node.Left.Left = core.NewEmptyNode()
 	node.Left.Left.Level = node.Level + 2
@@ -279,11 +312,22 @@ UNBUCKETIZE
 			mapperPayload.Constant = ctx.MapperValue
 		}
 		mapperPayload.Mapper = ctx.Mapper
-		mapperPayload.PreWindow = "$range $step MAX -1 *"
+		mapperPayload.PreWindow = "1 s $range 1 s - MAX -1 *"
 		mapperPayload.PostWindow = "0"
 		mapperPayload.Occurrences = "0"
-		node.Payload = mapperPayload
+		mapperPayload.Suffix = " { '" + core.ShouldRemoveNameLabel + "' 'true' } SETATTRIBUTES \n"
+		if len(ctx.Args) > 0 {
+			mapperPayload.Constant = mapperPayload.Constant + ctx.Args[0]
+		}
+		node.Left.Payload = mapperPayload
+	} else if ctx.HasFunction {
+		var functionPayload core.FunctionPayload
+		functionPayload.Name = ctx.FunctionName
+		functionPayload.Args = ctx.Args
+		functionPayload.Prefix = "<% $range $step < %> <% DROP [] %> IFT\n"
+		node.Left.Payload = functionPayload
 	}
+	node.Payload = bucketizePayload
 }
 
 func labelMatchersToMapLabels(matrixSelector ...*labels.Matcher) (string, bool, map[string]string) {
@@ -323,7 +367,7 @@ func (ev *evaluator) vectorSelector(selector *promql.VectorSelector, node *core.
 	if ctx.IsInstant {
 		var bucketizePayload core.BucketizePayload
 		bucketizePayload.Op = "bucketizer.last"
-		bucketizePayload.LastBucket = fmt.Sprintf("%v000 ", ctx.End) + fmt.Sprintf("%v", selector.Offset.Nanoseconds()/1000) + " - "
+		bucketizePayload.LastBucket = fmt.Sprintf("%v000 ", ctx.End)
 		bucketizePayload.BucketSpan = "0"
 		bucketizePayload.BucketCount = "1"
 
@@ -358,20 +402,26 @@ func (ev *evaluator) vectorSelector(selector *promql.VectorSelector, node *core.
 
 		var bucketizePayload core.BucketizePayload
 		bucketizePayload.Op = "bucketizer.last"
-		bucketizePayload.LastBucket = fmt.Sprintf("%v000 ", ctx.End) + fmt.Sprintf("%v", selector.Offset.Nanoseconds()/1000) + " - "
+		bucketizePayload.LastBucket = fmt.Sprintf("%v000 ", ctx.End)
 		bucketizePayload.BucketSpan = fmt.Sprintf("%v ", ctx.Step)
 
-		bucketizePayload.BucketCount = fmt.Sprintf("%v000 %v000 %v 2 * -  - %v / TOLONG 1 + ", ctx.End, ctx.Start, ctx.Step, ctx.Step)
+		bucketizePayload.BucketCount = fmt.Sprintf("%v000 %v000 %v 2 * -  - %v / TOLONG 1 + 2 - ABS", ctx.End, ctx.Start, ctx.Step, ctx.Step)
 		bucketizePayload.PreBucketize = `
 <%
 	DROP 
-	` + viper.GetString("prometheus.fillprevious.period") + `
+	` + viper.GetString("prometheus.fillprevious.period") + ` DUP 'FILL_PREVIOUS_PERIOD' STORE
     1 'splits_945fa9bc3027d7025e3' TIMESPLIT 
     <% 
         DROP
-        DUP LASTTICK 'lt' STORE
-        DUP FIRSTTICK 'ft' STORE
-        [ SWAP bucketizer.last $lt $step $lt $ft - $step / TOLONG 1 + ] BUCKETIZE FILLPREVIOUS 0 GET
+		DUP LASTTICK 'lt' STORE
+		<%
+            $lt $end $FILL_PREVIOUS_PERIOD - <=
+        %>
+        <%
+        	DUP FIRSTTICK 'ft' STORE
+			[ SWAP bucketizer.last $lt $step $lt $ft - $step / TOLONG 1 + ] BUCKETIZE FILLPREVIOUS 0 GET
+		%>
+		IFT
         { 'splits_945fa9bc3027d7025e3' '' } RELABEL
     %>
     LMAP
@@ -402,7 +452,7 @@ UNBUCKETIZE
 		fetchPayload.ClassName = string(selector.Name)
 		fetchPayload.Step = ctx.Step
 
-		fetchPayload.End = fmt.Sprintf("%v000 ", ctx.End) + fmt.Sprintf("%v", selector.Offset.Nanoseconds()/1000) + " - "
+		fetchPayload.End = fmt.Sprintf("%v000 ", ctx.End)
 		fetchPayload.Start = fmt.Sprintf("%v000 %v 2 * - ", ctx.Start, ctx.Step) + fmt.Sprintf("%v", selector.Offset.Nanoseconds()/1000) + " - "
 
 		if selector.Offset.String() != "0s" {

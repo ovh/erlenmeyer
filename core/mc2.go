@@ -3,11 +3,15 @@ package core
 import (
 	"bytes"
 	"fmt"
+	"math"
 	"strconv"
 	"strings"
 
 	log "github.com/sirupsen/logrus"
 )
+
+// ShouldRemoveNameLabel WarpScript attribute key to remove name label
+const ShouldRemoveNameLabel = "SHOULD_REMOVE_NAME_LABEL"
 
 // ToWarpScriptWithTime translate a node to a WarpScript with start and end prefix
 func (n *Node) ToWarpScriptWithTime(token string, query string, step string, start Time, end Time) string {
@@ -42,8 +46,14 @@ func (n *Node) ToWarpScript(token string, query string, step string) string {
 	n.toWarpScript(&b)
 
 	// Adding footer
-	b.WriteString("\nDUP TYPEOF <% 'GTS' == %> <% [ SWAP ] %> IFT SORT\n")
-	b.WriteString("\nUNBUCKETIZE [ SWAP mapper.finite 0 0 0 ] MAP\n")
+	b.WriteString("\nDUP TYPEOF <% 'GTS' == %> <% [ SWAP ] %> IFT \n")
+
+	b.WriteString("\nDUP TYPEOF <% 'LIST' != %> <% \n")
+	b.WriteString("\t 'gts_values' STORE NEWGTS $start NaN NaN NaN $gts_values ADDVALUE $end NaN NaN NaN $gts_values ADDVALUE \n")
+	b.WriteString("\t [ SWAP bucketizer.last $end $step 0 ] BUCKETIZE FILLPREVIOUS FILLNEXT \n")
+	b.WriteString("\t { '" + ShouldRemoveNameLabel + "' 'true' } SETATTRIBUTES \n")
+	b.WriteString("%> IFT \n")
+	b.WriteString("\nNONEMPTY SORT UNBUCKETIZE [ SWAP mapper.tostring 0 0 0 ] MAP\n")
 
 	return b.String()
 }
@@ -94,13 +104,37 @@ func (n *Node) toWarpScript(b *bytes.Buffer) {
 			b.WriteString("$right\n")
 		}
 
+		if len(n.ChildLabels) == 0 {
+			b.WriteString(" [] 'child_labels' STORE \n")
+		} else {
+			b.WriteString(" [ '" + strings.Join(n.ChildLabels, "' '") + "' ] 'child_labels' STORE \n")
+		}
+
 		n.Write(b)
 	} else {
 		if n.Left != nil {
 			n.Left.toWarpScript(b)
 		}
+		if len(n.ChildLabels) == 0 {
+			b.WriteString(" [] 'child_labels' STORE \n")
+		} else {
+			b.WriteString(" [ '" + strings.Join(n.ChildLabels, "' '") + "' ] 'child_labels' STORE \n")
+		}
 		n.Write(b)
 	}
+}
+
+// IsValid check if a label name string is Valid
+func IsValid(labelName string) bool {
+	if len(labelName) == 0 {
+		return false
+	}
+	for i, b := range labelName {
+		if !((b >= 'a' && b <= 'z') || (b >= 'A' && b <= 'Z') || b == '_' || b == '.' || (b >= '0' && b <= '9' && i > 0)) {
+			return false
+		}
+	}
+	return true
 }
 
 // Write write node content
@@ -108,6 +142,10 @@ func (n *Node) toWarpScript(b *bytes.Buffer) {
 func (n *Node) Write(b *bytes.Buffer) {
 	switch p := n.Payload.(type) {
 	case FetchPayload:
+		b.WriteString("0 'range' STORE\n")
+		b.WriteString("0 'step' CSTORE\n")
+		b.WriteString(p.BucketRange)
+
 		b.WriteString("[ $token '")
 		b.WriteString(p.ClassName)
 		b.WriteString("' ")
@@ -126,14 +164,13 @@ func (n *Node) Write(b *bytes.Buffer) {
 				b.WriteString(" " + p.End + " " + p.Start + " - ")
 			}
 		} else {
-
 			if p.Instant {
 				b.WriteString(" " + p.Start + " " + p.End + " ")
 			} else {
 				if p.Absent {
 					b.WriteString(" " + p.Start + " 15 m - ISO8601")
 				} else {
-					b.WriteString(" " + p.Start + " ISO8601")
+					b.WriteString(" " + p.Start + " $range $step + - ISO8601")
 				}
 				b.WriteString(" " + p.End + " ISO8601")
 			}
@@ -167,24 +204,18 @@ func (n *Node) Write(b *bytes.Buffer) {
 
 	case BucketizePayload:
 
-		// In case of a rate, FALSE RESETS needs to be applied BEFORE BUCKETIZE.
-		// If not, bucketizer.mean will create a mean during the false resets
-		if p.ApplyRate {
-			b.WriteString("FALSE RESETS\n")
-		}
-
 		if p.BucketCount == "1" && p.BucketSpan == "0" {
 			b.WriteString("<% $empty ! %>\n")
 			b.WriteString("<%\n")
 		}
 
 		if p.Absent {
-			b.WriteString(p.BucketRange + " [ SWAP " + p.Op + " " + p.LastBucket + " " + p.BucketSpan + " " + p.BucketCount + " 15 m " + p.BucketSpan + " / + ] BUCKETIZE\n")
+			b.WriteString(" [ SWAP " + p.Op + " " + p.LastBucket + " " + p.BucketSpan + " " + p.BucketCount + " 15 m " + p.BucketSpan + " / + ] BUCKETIZE\n")
 			b.WriteString("[ SWAP mapper.last 15 m $step / 0 $instant -1 * ] MAP\n")
-			b.WriteString(p.BucketRange + " [ SWAP " + p.Op + " " + p.LastBucket + " " + p.BucketSpan + " " + p.BucketCount + " ] BUCKETIZE\n")
+			b.WriteString(" [ SWAP " + p.Op + " " + p.LastBucket + " " + p.BucketSpan + " " + p.BucketCount + " ] BUCKETIZE\n")
 		} else {
 			b.WriteString(p.PreBucketize + "\n")
-			b.WriteString(p.BucketRange + " [ SWAP " + p.Op + " " + p.LastBucket + " " + p.BucketSpan + " " + p.BucketCount + " ] BUCKETIZE\n")
+			b.WriteString(" [ SWAP " + p.Op + " " + p.LastBucket + " " + p.BucketSpan + " " + p.BucketCount + " ] BUCKETIZE\n")
 			b.WriteString(p.Filler + "\n")
 		}
 
@@ -207,6 +238,7 @@ func (n *Node) Write(b *bytes.Buffer) {
 		b.WriteString(" ")
 		b.WriteString(p.Occurrences)
 		b.WriteString(" ] MAP\n")
+		b.WriteString(p.Suffix)
 
 	case AddValuePayload:
 		b.WriteString(p.Timestamp)
@@ -250,36 +282,92 @@ func (n *Node) Write(b *bytes.Buffer) {
 		b.WriteString(" ] REDUCE\n")
 
 	case FunctionPayload:
+		b.WriteString(p.Prefix)
 		switch p.Name {
 		case "abs":
-			b.WriteString("[ SWAP mapper.abs 0 0 0 ] MAP\n")
+			b.WriteString("[ SWAP mapper.abs 0 0 0 ] MAP { '" + ShouldRemoveNameLabel + "' 'true' } SETATTRIBUTES\n")
 		case "absent":
 			b.WriteString("[ SWAP 0.0 mapper.replace 0 0 0 ] MAP [ NaN NaN NaN 1 ] FILLVALUE ")
 		case "ceil":
-			b.WriteString("UNBUCKETIZE [ SWAP mapper.ceil 0 0 0 ] MAP\n")
+			b.WriteString("UNBUCKETIZE [ SWAP mapper.ceil 0 0 0 ] MAP { '" + ShouldRemoveNameLabel + "' 'true' } SETATTRIBUTES\n")
 		case "changes":
-			// COMPACT will dedup useless values, then we check if lasttick has the same value than penultimate (lasttick is forced by COMPACT), if yes we decrease the size by 1.
-			b.WriteString("COMPACT MARK SWAP <% DUP DUP DUP NAME 'name' STORE LABELS 'l' STORE LASTTICK 'lt' STORE\n")
-			b.WriteString("VALUES 'list' STORE $list SIZE 's' STORE $list $s 1 - GET $list $s 2 - GET\n")
-			b.WriteString("<%  ==  %> <% $s 1 - %> <% $s %> IFTE 'val' STORE NEWGTS $name RENAME $l RELABEL $lt NaN DUP DUP $val SETVALUE \n")
-			b.WriteString("%> FOREACH COUNTTOMARK ->LIST SWAP DROP\n")
+			b.WriteString("[ SWAP mapper.delta 1 0 0 ] MAP \n")
+			b.WriteString("[ SWAP -1 mapper.max.x 0 0 0 ] MAP \n")
+			b.WriteString("[ SWAP 1 mapper.min.x 0 0 0 ] MAP \n")
+			b.WriteString("[ SWAP mapper.abs 0 0 0 ] MAP \n")
+			b.WriteString("[ SWAP mapper.sum 1 s $range $step - 1 s + MAX -1 * 0 0 ] MAP \n")
+			b.WriteString("{ '" + ShouldRemoveNameLabel + "' 'true' } SETATTRIBUTES \n")
 		case "clamp_max":
 			b.WriteString("UNBUCKETIZE [ SWAP " + p.Args[0] + fixScalar() + " mapper.min.x 0 0 0 ] MAP\n")
+			b.WriteString("{ '" + ShouldRemoveNameLabel + "' 'true' } SETATTRIBUTES \n")
 		case "clamp_min":
 			b.WriteString("UNBUCKETIZE [ SWAP " + p.Args[0] + fixScalar() + " mapper.max.x 0 0 0 ] MAP\n")
+			b.WriteString("{ '" + ShouldRemoveNameLabel + "' 'true' } SETATTRIBUTES \n")
 		case "count_scalar":
 			b.WriteString("[ SWAP [ ] reducer.count ] REDUCE [ 0.0 0.0 0 0 ] FILLVALUE\n")
 		case "day_of_month":
-			b.WriteString("[ SWAP 'UTC' mapper.day 0 0 0 ] MAP\n")
+			b.WriteString("DEPTH <% 0 == %> <% \n")
+			b.WriteString("\t NEWGTS $start NaN NaN NaN $start ADDVALUE $end NaN NaN NaN $end ADDVALUE \n")
+			b.WriteString("\t [ SWAP bucketizer.last $end $step 0 ] BUCKETIZE FILLPREVIOUS FILLNEXT \n")
+			b.WriteString("[ SWAP 'UTC' mapper.day 0 0 0 ] MAP \n")
+			b.WriteString("%> <% \n")
+			b.WriteString(`
+			[ 
+				SWAP 
+				<% 
+					DUP 0 GET SWAP 
+					7 GET 0 GET 1 s * TOLONG
+					TSELEMENTS 
+					2 GET 
+					NaN SWAP NaN SWAP NaN SWAP
+				%>
+				MACROMAPPER
+				0
+				0
+				0
+			] MAP
+			`)
+			b.WriteString("%> IFTE \n")
+			b.WriteString("{ '" + ShouldRemoveNameLabel + "' 'true' } SETATTRIBUTES \n")
+
 		case "day_of_week":
+			b.WriteString("DEPTH <% 0 == %> <% \n")
+			b.WriteString("\t NEWGTS $start NaN NaN NaN $start ADDVALUE $end NaN NaN NaN $end ADDVALUE \n")
+			b.WriteString("\t [ SWAP bucketizer.last $end $step 0 ] BUCKETIZE FILLPREVIOUS FILLNEXT \n")
 			b.WriteString("[ SWAP 'UTC' mapper.weekday 0 0 0 ] MAP\n")
 			b.WriteString("[ SWAP 7 mapper.mod 0 0 0 ] MAP\n")
+			b.WriteString("%> <% \n")
+			b.WriteString(`
+			[ 
+				SWAP 
+				<% 
+					DUP 0 GET SWAP 
+					7 GET 0 GET 1 s * TOLONG
+					TSELEMENTS 
+					8 GET 
+					NaN SWAP NaN SWAP NaN SWAP
+				%>
+				MACROMAPPER
+				0
+				0
+				0
+			] MAP
+			`)
+			b.WriteString("%> IFTE \n")
+			b.WriteString("{ '" + ShouldRemoveNameLabel + "' 'true' } SETATTRIBUTES\n")
 		case "days_in_month":
+			b.WriteString("DEPTH <% 0 == %> <% \n")
+			b.WriteString("\t NEWGTS $start NaN NaN NaN $start ADDVALUE $end NaN NaN NaN $end ADDVALUE \n")
+			b.WriteString("\t [ SWAP bucketizer.last $end $step 0 ] BUCKETIZE FILLPREVIOUS FILLNEXT \n")
+			b.WriteString("%> IFT \n")
 			b.WriteString(warpIsFebruary + "\n" + warpMacroBissex + "\n" + warpMacroDayInMonth + "\n")
 			b.WriteString("[ SWAP <%  'mapping_window' STORE  $mapping_window 0 GET  'tick' STORE  $tick TSELEMENTS DUP 0 GET 'year' STORE 1 GET 'month' STORE\n")
-			b.WriteString("$month $year @DAYSINMONTH  'days' STORE $tick NaN NaN NaN $days %> MACROMAPPER 0 0 0 ] MAP\n")
+			b.WriteString("$month $year @DAYSINMONTH  'days' STORE $tick NaN NaN NaN $days %> MACROMAPPER 0 0 0 ] MAP { '" + ShouldRemoveNameLabel + "' 'true' } SETATTRIBUTES\n")
 		case "delta":
-			b.WriteString("[ SWAP mapper.delta $step $range MAX -1 * 0 $bucketCount 1 - -1 * ] MAP\n")
+			//b.WriteString("[ SWAP mapper.delta $step $range MAX -1 * 0 $bucketCount 1 - -1 * ] MAP\n")
+			b.WriteString("[ SWAP mapper.todouble 0 0 0 ] MAP\n")
+			b.WriteString("[ SWAP mapper.delta 1 s $range 1 s + MAX -1 * 0 0 ] MAP\n")
+			b.WriteString("{ '" + ShouldRemoveNameLabel + "' 'true' } SETATTRIBUTES\n")
 		case "deriv":
 			b.WriteString("'deriv method is not supported' MSGFAIL")
 			// FIXME
@@ -287,24 +375,66 @@ func (n *Node) Write(b *bytes.Buffer) {
 			b.WriteString("DUP [ SWAP [ ] reducer.count ] REDUCE 0 GET LABELS KEYLIST MARK SWAP <% '' %> FOREACH COUNTTOMARK ->MAP SWAP DROP RELABEL\n")
 		case "exp":
 			b.WriteString(NewSimpleMacroMapper("EXP"))
+			b.WriteString(" { '" + ShouldRemoveNameLabel + "' 'true' } SETATTRIBUTES \n")
 		case "floor":
-			b.WriteString("UNBUCKETIZE [ SWAP mapper.floor 0 0 0 ] MAP\n")
+			b.WriteString("UNBUCKETIZE [ SWAP mapper.floor 0 0 0 ] MAP { '" + ShouldRemoveNameLabel + "' 'true' } SETATTRIBUTES\n")
 		case "histogram_quantile":
 			b.WriteString(p.Args[0] + fixScalar() + " 'QUANTILE' STORE \n" + warpBucketQuantile + "\n" + warpReducerHistogram + "\n")
-			b.WriteString("<% 'equivalenceClass' DEFINED ! %> <%  [ ] 'equivalenceClass' STORE %> IFT \n")
-			b.WriteString("[ SWAP  [ 'le' ] ->SET $equivalenceClass ->SET SWAP DIFFERENCE SET-> $reducer.histogram MACROREDUCER ] REDUCE\n")
+			// Drop series when le label is missing
+			b.WriteString("[] SWAP <% DUP LABELS KEYLIST <% 'le' CONTAINS ! %> <% DROP DROP %> <% DROP + %> IFTE %> FOREACH\n")
+			b.WriteString("[] SWAP DUP ROT SWAP <% LABELS KEYLIST + %> FOREACH FLATTEN UNIQUE \n")
+			b.WriteString("->SET [ 'le' ] ->SET DIFFERENCE SET-> 'notLE' STORE\n")
+			b.WriteString("<% $QUANTILE 0.0 < $QUANTILE 1.0 > || %>\n")
+			b.WriteString("<% [ SWAP $notLE reducer.max ] REDUCE\n")
+			b.WriteString("  <% $QUANTILE 0.0 < %> <% [ SWAP -1.0 0.0 / mapper.replace 0 0 0 ] MAP 0.5 'QUANTILE' STORE %> IFT\n")
+			b.WriteString("  <% $QUANTILE 1.0 > %> <% [ SWAP 1.0 0.0 / mapper.replace 0 0 0 ] MAP 0.5 'QUANTILE' STORE %> IFT\n")
+			b.WriteString("%> <%\n")
+			b.WriteString("  <% 'equivalenceClass' DEFINED ! %> <%  [ ] 'equivalenceClass' STORE %> IFT \n")
+			b.WriteString("  [ SWAP $notLE $reducer.histogram MACROREDUCER ] REDUCE\n")
+			b.WriteString("%> IFTE\n")
+			b.WriteString(" { '" + ShouldRemoveNameLabel + "' 'true' } SETATTRIBUTES \n")
 		case "holt_winters":
-			b.WriteString(" " + p.Args[0] + fixScalar() + " " + p.Args[1] + fixScalar() + "DOUBLEEXPONENTIALSMOOTHING 0 GET\n")
-			b.WriteString("[ SWAP [] op.add ] APPLY\n")
+			// DOUBLEEXPONENTIALSMOOTHING delete first series data point, fill each series with its first one
+			b.WriteString("SORT <% DROP 'series' STORE $series FIRSTTICK 'ftick' STORE $series $ftick $step -  NaN NaN NaN $series VALUES 0 GET  ADDVALUE %> LMAP\n")
+			b.WriteString(" " + p.Args[0] + fixScalar() + " " + p.Args[1] + fixScalar() + "DOUBLEEXPONENTIALSMOOTHING NULL PARTITION [] SWAP \n")
+			b.WriteString("<% SWAP DROP [ SWAP NULL op.add ] APPLY + %> FOREACH FLATTEN\n")
+			b.WriteString(" { '" + ShouldRemoveNameLabel + "' 'true' } SETATTRIBUTES \n")
 		case "hour":
+			b.WriteString("DEPTH <% 0 == %> <% \n")
+			b.WriteString("\t NEWGTS $start NaN NaN NaN $start ADDVALUE $end NaN NaN NaN $end ADDVALUE \n")
+			b.WriteString("\t [ SWAP bucketizer.last $end $step 0 ] BUCKETIZE FILLPREVIOUS FILLNEXT \n")
 			b.WriteString("[ SWAP 'UTC' mapper.hour 0 0 0 ] MAP\n")
+			b.WriteString("%> <% \n")
+			b.WriteString(`
+			[ 
+				SWAP 
+				<% 
+					DUP 0 GET SWAP 
+					7 GET 0 GET 1 s * TOLONG
+					TSELEMENTS 
+					3 GET 
+					NaN SWAP NaN SWAP NaN SWAP
+				%>
+				MACROMAPPER
+				0
+				0
+				0
+			] MAP
+			`)
+			b.WriteString("%> IFTE \n")
+			b.WriteString("{ '" + ShouldRemoveNameLabel + "' 'true' } SETATTRIBUTES\n")
 		case "idelta":
-			b.WriteString("[ SWAP mapper.delta 1 0 $bucketCount 1 - -1 * ] MAP\n")
+			b.WriteString("[ SWAP mapper.delta 1 0 0 ] MAP\n")
+			b.WriteString("{ '" + ShouldRemoveNameLabel + "' 'true' } SETATTRIBUTES\n")
 		case "increase":
 			b.WriteString("FALSE RESETS\n")
-			b.WriteString("[ SWAP mapper.delta $step $range MAX -1 * 0 $bucketCount 1 - -1 * ] MAP\n")
+			//b.WriteString("[ SWAP mapper.delta $step $range MAX -1 * 0 $bucketCount 1 - -1 * ] MAP\n")
+			b.WriteString("[ SWAP mapper.delta 1 s $range 1 s + MAX -1 * 0 0 ] MAP \n")
+			b.WriteString("{ '" + ShouldRemoveNameLabel + "' 'true' } SETATTRIBUTES\n")
 		case "irate":
-			b.WriteString("[ SWAP mapper.rate 1 0 $bucketCount 1 - -1 * ] MAP\n")
+			b.WriteString("FALSE RESETS\n")
+			b.WriteString("[ SWAP mapper.rate 1 0 0 ] MAP\n")
+			b.WriteString("{ '" + ShouldRemoveNameLabel + "' 'true' } SETATTRIBUTES\n")
 		case "label_join":
 			b.WriteString("<% DROP DUP LABELS 'labels' STORE ")
 			b.WriteString("[ ")
@@ -321,17 +451,23 @@ func (n *Node) Write(b *bytes.Buffer) {
 			b.WriteString(p.Args[0] + fixScalar())
 			b.WriteString("PUT RELABEL %> LMAP\n")
 		case "label_replace":
-			b.WriteString(p.Args[0] + fixScalar() + " 'new_label' STORE " + p.Args[1] + fixScalar() + " 'replacement' STORE " + p.Args[2] + fixScalar() + " 'src_label' STORE " + p.Args[3] + fixScalar() + " 'regex' STORE \n")
+			promLabel := strings.TrimPrefix(p.Args[0], " [] 'child_labels' STORE \n")
+			if !IsValid(strings.Trim(strings.TrimSpace(promLabel), "\"")) {
+				b.WriteString("'invalid destination label name in label_replace(): ' " + p.Args[0] + " + MSGFAIL\n")
+			}
+			b.WriteString(p.Args[0] + " 'new_label' STORE " + p.Args[1] + " 'replacement' STORE " + p.Args[2] + " 'src_label' STORE " + p.Args[3] + " 'regex' STORE \n")
 			b.WriteString("MARK SWAP <%  DUP DUP NAME 'c' STORE LABELS { '__name__' $c  '' '' } APPEND DUP  $src_label GET DUP \n")
-			b.WriteString("<% ISNULL %>  <% DROP DROP %> <% DUP $regex MATCH SIZE \n")
+			b.WriteString("<% ISNULL %>  \n")
+			b.WriteString("<% DROP DUP $new_label GET DUP <% ISNULL %> <% DROP DROP %> <% <% 'source-value-' $regex 0 13  SUBSTRING != %> <% DROP '' %> IFT $regex $replacement REPLACE $new_label <% DUP '__name__' == %> <% DROP SWAP DROP RENAME %> <% PUT RELABEL %> IFTE %> IFTE %>  \n")
+			b.WriteString("<% DUP $regex MATCH SIZE \n")
 			b.WriteString("<% 0  >  %>  <%   $regex $replacement REPLACE  $new_label <% DUP '__name__' == %> <% DROP SWAP DROP RENAME %> <% PUT RELABEL %> IFTE %>  <% DROP DROP %> IFTE\n")
 			b.WriteString("%> IFTE %> FOREACH COUNTTOMARK ->LIST SWAP DROP\n")
 		case "ln":
-			b.WriteString("[ SWAP e mapper.log 0 0 0 ] MAP\n")
+			b.WriteString("[ SWAP e mapper.log 0 0 0 ] MAP { '" + ShouldRemoveNameLabel + "' 'true' } SETATTRIBUTES\n")
 		case "log2":
-			b.WriteString("[ SWAP 2.0 mapper.log 0 0 0 ] MAP\n")
+			b.WriteString("[ SWAP 2.0 mapper.log 0 0 0 ] MAP { '" + ShouldRemoveNameLabel + "' 'true' } SETATTRIBUTES\n")
 		case "log10":
-			b.WriteString("[ SWAP 10.0 mapper.log 0 0 0 ] MAP\n")
+			b.WriteString("[ SWAP 10.0 mapper.log 0 0 0 ] MAP { '" + ShouldRemoveNameLabel + "' 'true' } SETATTRIBUTES\n")
 
 		// Predict_linear works as a mapper in Prom
 		// Compute alpha and beta linear regression on a range value ([1m] as example),
@@ -342,17 +478,70 @@ func (n *Node) Write(b *bytes.Buffer) {
 			b.WriteString("[ SWAP <% 'mappingWindow' STORE $mappingWindow 0 GET 'tick' STORE $mappingWindow 3 GET [] [] [] $mappingWindow 7 GET MAKEGTS DUP <% VALUES SIZE 2 >= %> \n")
 
 			// Compute predict_linear
-			b.WriteString("<% LR 'beta' STORE 'alpha' STORE $tick NaN NaN NaN $alpha $tick " + p.Args[0] + fixScalar() + "+ $beta * + %> <% DROP $mappingWindow 0 GET NaN NaN NaN NULL %> IFTE %> MACROMAPPER $range $step / 0 $instant -1 * ] MAP\n")
+			b.WriteString("<% LR 'beta' STORE 'alpha' STORE $tick NaN NaN NaN $alpha $tick $end $start - +" + p.Args[0] + fixScalar() + "+ $beta * + %> <% DROP $mappingWindow 0 GET NaN NaN NaN NULL %> IFTE %> MACROMAPPER $range $step / 0 $instant -1 * ] MAP\n")
 
+			b.WriteString("{ '" + ShouldRemoveNameLabel + "' 'true' } SETATTRIBUTES \n")
 		case "minute":
-			b.WriteString("[ SWAP 'UTC' mapper.minute 0 0 0 ] MAP\n")
+			b.WriteString("DEPTH <% 0 == %> <% \n")
+			b.WriteString("\t NEWGTS $start NaN NaN NaN $start ADDVALUE $end NaN NaN NaN $end ADDVALUE \n")
+			b.WriteString("\t [ SWAP bucketizer.last $end $step 0 ] BUCKETIZE FILLPREVIOUS FILLNEXT \n")
+			b.WriteString("\t [ SWAP 'UTC' mapper.minute 0 0 0 ] MAP \n")
+			b.WriteString("%> <% \n")
+			b.WriteString(`
+			[ 
+				SWAP 
+				<% 
+					DUP 0 GET SWAP 
+					7 GET 0 GET 1 s * TOLONG
+					TSELEMENTS 
+					4 GET 
+					NaN SWAP NaN SWAP NaN SWAP
+				%>
+				MACROMAPPER
+				0
+				0
+				0
+			] MAP
+			`)
+
+			b.WriteString("%> IFTE \n")
+			b.WriteString("{ '" + ShouldRemoveNameLabel + "' 'true' } SETATTRIBUTES \n")
+
 		case "month":
-			b.WriteString("[ SWAP 'UTC' mapper.month 0 0 0 ] MAP\n")
+			b.WriteString("DEPTH <% 0 == %> <% \n")
+			b.WriteString("\t NEWGTS $start NaN NaN NaN $start ADDVALUE $end NaN NaN NaN $end ADDVALUE \n")
+			b.WriteString("\t [ SWAP bucketizer.last $end $step 0 ] BUCKETIZE FILLPREVIOUS FILLNEXT \n")
+			b.WriteString("[ SWAP 'UTC' mapper.month 0 0 0 ] MAP \n")
+			b.WriteString("%> <% \n")
+			b.WriteString(`
+			[ 
+				SWAP 
+				<% 
+					DUP 0 GET SWAP 
+					7 GET 0 GET 1 s * TOLONG
+					TSELEMENTS 
+					1 GET 
+					NaN SWAP NaN SWAP NaN SWAP
+				%>
+				MACROMAPPER
+				0
+				0
+				0
+			] MAP
+			`)
+			b.WriteString("%> IFTE \n")
+			b.WriteString("{ '" + ShouldRemoveNameLabel + "' 'true' } SETATTRIBUTES\n")
 		case "rate":
 			b.WriteString("FALSE RESETS\n")
-			b.WriteString("[ SWAP mapper.rate $step $range MAX -1 * 0 $bucketCount 1 - -1 * ] MAP\n")
+			//b.WriteString("[ SWAP mapper.rate $step $range MAX -1 * 0 $bucketCount 1 - -1 * ] MAP\n")
+			b.WriteString("[ SWAP mapper.rate 1 s $range 1 s + MAX -1 * 0 0 ] MAP\n")
+			b.WriteString("{ '" + ShouldRemoveNameLabel + "' 'true' } SETATTRIBUTES\n")
 		case "resets":
-			b.WriteString("FALSE RESETS\n")
+			b.WriteString("[ SWAP mapper.delta 1 0 0 ] MAP\n")
+			b.WriteString("[ SWAP -1 mapper.max.x 0 0 0 ] MAP\n")
+			b.WriteString("[ SWAP 0 mapper.min.x 0 0 0 ] MAP\n")
+			b.WriteString("[ SWAP mapper.abs 0 0 0 ] MAP\n")
+			b.WriteString("{ '" + ShouldRemoveNameLabel + "' 'true' } SETATTRIBUTES\n")
 		case "round":
 			// When setting to_nearest optionnal param: Divide series per it before rounding it to nearest integer and multiplicate it back by it
 			if len(p.Args) == 1 {
@@ -360,27 +549,49 @@ func (n *Node) Write(b *bytes.Buffer) {
 				b.WriteString("UNBUCKETIZE [ SWAP mapper.round 0 0 0 ] MAP\n")
 				b.WriteString("UNBUCKETIZE [ SWAP " + p.Args[0] + fixScalar() + " TODOUBLE mapper.mul 0 0 0 ] MAP\n")
 			}
-			b.WriteString("UNBUCKETIZE [ SWAP mapper.round 0 0 0 ] MAP\n")
+			b.WriteString("UNBUCKETIZE [ SWAP mapper.round 0 0 0 ] MAP { '" + ShouldRemoveNameLabel + "' 'true' } SETATTRIBUTES\n")
 		case "scalar":
 			b.WriteString("DUP SIZE <% 1 == %> <% VALUES 0 GET 0 GET %> <% DROP NaN %> IFTE\n")
-			b.WriteString(" 'value' STORE [ $start $end ] [] [] [] [ $value DUP ] MAKEGTS 'scalar' RENAME\n")
+			b.WriteString(" 'value' STORE [ $start $end ] [] [] [] [ $value DUP ] MAKEGTS 'scalar' RENAME { '" + ShouldRemoveNameLabel + "' 'true' } SETATTRIBUTES\n")
 			b.WriteString(" [ SWAP bucketizer.mean $end $step $instant ] BUCKETIZE INTERPOLATE SORT\n")
 		case "sort":
 			b.WriteString("<% [ SWAP bucketizer.mean 0 0 1 ] BUCKETIZE VALUES 0 GET 0 GET %> SORTBY\n")
 		case "sort_desc":
 			b.WriteString("<% [ SWAP bucketizer.mean 0 0 1 ] BUCKETIZE VALUES 0 GET 0 GET %> SORTBY REVERSE\n")
 		case "sqrt":
-			b.WriteString("[ SWAP mapper.sqrt 0 0 0 ] MAP\n")
+			b.WriteString("[ SWAP mapper.sqrt 0 0 0 ] MAP { '" + ShouldRemoveNameLabel + "' 'true' } SETATTRIBUTES\n")
 		case "time":
-			b.WriteString(" [ $start $end ] [] [] [] [ 1 DUP ] MAKEGTS 'scalar' RENAME\n")
+			b.WriteString(" [ $start $end ] [] [] [] [ 1 DUP ]  MAKEGTS 'scalar' RENAME { '" + ShouldRemoveNameLabel + "' 'true' } SETATTRIBUTES\n")
 			b.WriteString(" [ SWAP bucketizer.mean $end $step $instant ] BUCKETIZE INTERPOLATE SORT\n")
 			b.WriteString(" [ SWAP mapper.tick 0 0 0 ] MAP [ SWAP 0.000001 mapper.mul 0 0 0 ] MAP \n")
 		case "timestamp":
-			b.WriteString("[ SWAP mapper.tick 0 0 0 ] MAP\n")
+			b.WriteString(" UNBUCKETIZE [ SWAP mapper.tick 0 0 0 ] MAP [ SWAP 0.000001 mapper.mul 0 0 0 ] MAP { '" + ShouldRemoveNameLabel + "' 'true' } SETATTRIBUTES\n")
 		case "vector":
-			b.WriteString("'scalar' STORE  <% $scalar TYPEOF 'LIST' != %> <% [ $start $end ] [] [] [] [ $scalar ] MAKEGTS  'vector' RENAME [ SWAP bucketizer.mean $end $step $instant ] BUCKETIZE INTERPOLATE SORT %> <% $scalar <% DROP 'vector' RENAME %> LMAP %> IFTE\n")
+			b.WriteString("'scalar' STORE  <% $scalar TYPEOF 'LIST' != %> <% [ $start $end ] [] [] [] [ $scalar ] MAKEGTS  'vector' RENAME [ SWAP bucketizer.mean $end $step $instant ] BUCKETIZE INTERPOLATE SORT %> <% $scalar <% DROP 'vector' RENAME %> LMAP %> IFTE { '" + ShouldRemoveNameLabel + "' 'true' } SETATTRIBUTES\n")
 		case "year":
-			b.WriteString("[ SWAP 'UTC' mapper.year 0 0 0 ] MAP\n")
+			b.WriteString("DEPTH <% 0 == %> <% \n")
+			b.WriteString("\t NEWGTS $start NaN NaN NaN $start ADDVALUE $end NaN NaN NaN $end ADDVALUE \n")
+			b.WriteString("\t [ SWAP bucketizer.last $end $step 0 ] BUCKETIZE FILLPREVIOUS FILLNEXT \n")
+			b.WriteString("[ SWAP 'UTC' mapper.year 0 0 0 ] MAP \n")
+			b.WriteString("%> <% \n")
+			b.WriteString(`
+			[ 
+				SWAP 
+				<% 
+					DUP 0 GET SWAP 
+					7 GET 0 GET 1 s * TOLONG
+					TSELEMENTS 
+					0 GET 
+					NaN SWAP NaN SWAP NaN SWAP
+				%>
+				MACROMAPPER
+				0
+				0
+				0
+			] MAP
+			`)
+			b.WriteString("%> IFTE \n")
+			b.WriteString("{ '" + ShouldRemoveNameLabel + "' 'true' } SETATTRIBUTES\n")
 		}
 
 	case AggregatePayload:
@@ -407,32 +618,95 @@ func (n *Node) Write(b *bytes.Buffer) {
 		} else {
 			b.WriteString(" [ '" + strings.Join(p.IncludeLabels, "' '") + "' ] 'include_labels' STORE \n")
 		}
+		if p.Card == "many-to-one" {
+			// " [ 'many-to-one' ] 'joinedLabels' STORE \n"
+		} else if p.Card == "one-to-many" {
+			b.WriteString(" [ 'one-to-many' ] 'joinedLabels' STORE \n")
+		} else {
+			b.WriteString(" [] 'joinedLabels' STORE \n")
+		}
+		if p.ReturnBool {
+			b.WriteString("true 'return_bool' STORE \n")
+		} else {
+			b.WriteString("false 'return_bool' STORE \n")
+		}
 		convertBinaryExpr(b, p.Op, leftNodeType, rightNodeType, p.Card)
+		if p.ReturnBool {
+			b.WriteString(" [ NaN NaN NaN 0 ] FILLVALUE UNBUCKETIZE [ SWAP mapper.toboolean 0 0 0 ] MAP [ SWAP mapper.todouble 0 0 0 ] MAP  \n")
+			b.WriteString("{ '" + ShouldRemoveNameLabel + "' 'true' } SETATTRIBUTES \n")
+		}
+		b.WriteString("NONEMPTY \n")
 
 	case NumberLiteralPayload:
-		b.WriteString(fmt.Sprintf(" %s ", p.Value))
+		switch p.Value {
+		case fmt.Sprintf("%v", math.Inf(1)):
+			b.WriteString(" 1.0 0.0 / ")
+		case fmt.Sprintf("%v", math.Inf(-1)):
+			b.WriteString(" -1.0 0.0 / ")
+		case "NaN":
+			b.WriteString(" NaN ")
+		default:
+			if _, err := strconv.ParseFloat(p.Value, 64); err == nil {
+				b.WriteString(fmt.Sprintf(" %s TODOUBLE ", p.Value))
+			} else {
+				b.WriteString(fmt.Sprintf(" %s ", p.Value))
+			}
+		}
 
+	case UnaryExprPayload:
+		switch p.Op {
+		case "-":
+			b.WriteString("\nDUP TYPEOF <% 'LIST' != %> <% \n")
+			b.WriteString("\t 'gts_values' STORE NEWGTS $start NaN NaN NaN $gts_values ADDVALUE $end NaN NaN NaN $gts_values ADDVALUE \n")
+			b.WriteString("\t [ SWAP bucketizer.last $end $step 0 ] BUCKETIZE FILLPREVIOUS FILLNEXT \n")
+			b.WriteString("%> IFT \n")
+			b.WriteString(" [ SWAP -1.0 mapper.mul 0 0 0 ] MAP\n")
+			b.WriteString("\t { '" + ShouldRemoveNameLabel + "' 'true' } SETATTRIBUTES \n")
+		}
 	default:
 		panic(fmt.Sprintf("Type %T is not handled", n.Payload))
 	}
 }
 
 var macroFilterAggregateFooter = `
+'without_map' STORE
+$child_labels
+<%
+    'child_key' STORE
+    <%
+        $without_map $child_key CONTAINSKEY
+    %>
+    <%
+		$child_key REMOVE DROP $without_keys $child_key + 'without_keys' STORE 'without_map' STORE
+    %>
+    <%
+        DROP
+    %>
+    IFTE
+%>
+FOREACH
+$without_map
 RELABEL
 
 [] 'equivalenceClass' STORE
 <%
    DROP
    DUP
-   LABELS KEYLIST
+   LABELS 
+   $without_keys
+   <%
+      REMOVE DROP
+   %>
+   FOREACH
+   KEYLIST
    $equivalenceClass
    APPEND UNIQUE 'equivalenceClass' STORE
 %>
 LMAP
 ` + "\n"
 
-func getMacroFilterAggregate(labels []string) string {
-	return printLabelsAsWarpScriptMaps(labels) + macroFilterAggregateFooter
+func getMacroFilterAggregate(labels []string, suffix string) string {
+	return printLabelsAsWarpScriptMaps(labels) + "\n" + suffix + "\n" + macroFilterAggregateFooter
 }
 
 var simpleSupportedAggregator = map[string]string{
@@ -440,8 +714,8 @@ var simpleSupportedAggregator = map[string]string{
 	"min":      "reducer.min",
 	"max":      "reducer.max",
 	"avg":      "reducer.mean.exclude-nulls",
-	"stddev":   "reducer.sd",
-	"stdvar":   "reducer.var",
+	"stddev":   "false reducer.sd",
+	"stdvar":   "false reducer.var",
 	"count":    "reducer.count.exclude-nulls",
 	"quantile": "reducer.percentile",
 }
@@ -450,9 +724,13 @@ var simpleSupportedAggregator = map[string]string{
 // nolint: gocyclo
 func convertAggregate(b *bytes.Buffer, p AggregatePayload) {
 	// Filtering using without
+	b.WriteString("[] 'without_keys' STORE\n")
 	if p.Without && len(p.Grouping) > 0 {
-		b.WriteString(getMacroFilterAggregate(p.Grouping))
-		b.WriteString("[ SWAP $equivalenceClass reducer.sum ] REDUCE\n")
+		suffix := ""
+		if p.Op == "topk" || p.Op == "bottomk" {
+			suffix = "DROP {} \n"
+		}
+		b.WriteString(getMacroFilterAggregate(p.Grouping, suffix))
 	}
 
 	if reducer, ok := simpleSupportedAggregator[p.Op]; ok {
@@ -469,18 +747,31 @@ func convertAggregate(b *bytes.Buffer, p AggregatePayload) {
 
 		if p.Without && len(p.Grouping) > 0 {
 			b.WriteString("] DROP $equivalenceClass ")
+		} else if p.Without && len(p.Grouping) == 0 {
+			b.WriteString("] DROP NULL [] 'equivalenceClass' STORE ")
 		} else {
-			b.WriteString("] DUP 'equivalenceClass' STORE ")
+			b.WriteString("] DUP $child_labels APPEND 'equivalenceClass' STORE ")
 		}
 
 		if p.Op == "quantile" {
-			b.WriteString(" <% " + p.Param + " 0.0 < " + p.Param + " 1.0 > || %> <% 'quantile expects a number included between [0,1]' MSGFAIL %> IFT " + p.Param + " 100.0 * ")
+			b.WriteString(p.Param + " 'quantile' STORE\n")
+			b.WriteString("<% $quantile 0.0 < %> <% [ ROT -1.0 0.0 / mapper.replace 0 0 0 ] MAP SWAP 0.5 'quantile' STORE %> IFT\n")
+			b.WriteString("<% $quantile 1.0 > %> <% [ ROT 1.0 0.0 / mapper.replace 0 0 0 ] MAP SWAP 0.5 'quantile' STORE %> IFT\n")
+			b.WriteString(" $quantile 100.0 * ")
 		}
 
 		b.WriteString(reducer)
 		b.WriteString(" ] REDUCE\n")
-		// Keep only labels in the equivalence class like does promQL
-		b.WriteString("MARK SWAP  <%  DUP LABELS { } SWAP  <% 'v' STORE 'k' STORE <% $equivalenceClass $k CONTAINS %> <%  DROP { $k $v } APPEND  %> <% DROP %> IFTE %> FOREACH SWAP { NULL NULL } RELABEL SWAP RELABEL %> FOREACH COUNTTOMARK ->LIST SWAP DROP\n")
+
+		// When Without is set and grouping equals 0 skip labels refactoring
+		if !(p.Without && len(p.Grouping) == 0) {
+			// Keep also child nested needed labels
+			b.WriteString("$equivalenceClass $without_keys APPEND 'equivalenceClass' STORE\n")
+			// Keep only labels in the equivalence class like does promQL
+			b.WriteString("MARK SWAP  <%  DUP LABELS { } SWAP  <% 'v' STORE 'k' STORE <% $equivalenceClass $k CONTAINS %> <%  DROP { $k $v } APPEND  %> <% DROP %> IFTE %> FOREACH SWAP { NULL NULL } RELABEL SWAP RELABEL %> FOREACH COUNTTOMARK ->LIST SWAP DROP\n")
+		}
+		// Set a Warp10 attribute to indicate that the series name should be removed
+		b.WriteString("\t { '" + ShouldRemoveNameLabel + "' 'true' } SETATTRIBUTES \n")
 	} else {
 		// Advanced reduction
 		switch p.Op {
@@ -489,11 +780,34 @@ func convertAggregate(b *bytes.Buffer, p AggregatePayload) {
 			b.WriteString("[ SWAP bucketizer.count 0 0 1 ] BUCKETIZE\n")
 			b.WriteString("[ SWAP [ " + p.Param + " ] reducer.sum ] REDUCE\n")
 			b.WriteString("[ SWAP bucketizer.sum 0 0 1 ] BUCKETIZE\n")
-		case "topk":
-			b.WriteString("<% [ SWAP bucketizer.mean 0 0 1 ] BUCKETIZE VALUES 0 GET 0 GET %> SORTBY REVERSE [ 0 " + p.Param + " 1 - ] SUBLIST\n")
-		case "bottomk":
-			b.WriteString("[ SWAP bucketizer.min 0 0 1 ] BUCKETIZE\n")
-			b.WriteString("<% [ SWAP bucketizer.mean 0 0 1 ] BUCKETIZE VALUES 0 GET 0 GET %> SORTBY [ 0 " + p.Param + " 1 - ] SUBLIST\n")
+		case "topk", "bottomk":
+			sortSuffix := ""
+			if p.Op == "topk" {
+				sortSuffix = "REVERSE"
+			}
+			if len(p.Grouping) > 0 || (p.Without && len(p.Grouping) == 0) {
+				if p.Without && len(p.Grouping) == 0 {
+					b.WriteString("NULL PARTITION [] SWAP \n")
+				} else if p.Without && len(p.Grouping) > 0 {
+					b.WriteString("DUP <% DROP LABELS \n")
+					for _, labelKey := range p.Grouping {
+						b.WriteString("'" + labelKey + "' REMOVE DROP \n")
+					}
+					b.WriteString("KEYLIST %> LMAP FLATTEN UNIQUE \n")
+					b.WriteString("PARTITION [] SWAP \n")
+				} else {
+					b.WriteString("[ " + printLabelsAsWarpScriptList(p.Grouping) + " ] PARTITION [] SWAP \n")
+				}
+				b.WriteString("<% \n")
+				b.WriteString("\t SWAP DROP \n")
+				b.WriteString("\t ")
+			}
+			b.WriteString("<% [ SWAP bucketizer.mean 0 0 1 ] BUCKETIZE VALUES 0 GET 0 GET %> SORTBY " + sortSuffix + " [ 0 " + p.Param + " 1 - ] SUBLIST \n")
+			if len(p.Grouping) > 0 || (p.Without && len(p.Grouping) == 0) {
+
+				b.WriteString("\t + \n")
+				b.WriteString("%> FOREACH FLATTEN \n")
+			}
 		default:
 			log.Errorf("Aggregator not supported: %s", p.Op)
 		}
@@ -569,15 +883,113 @@ func groupOnPer(side, operator string, addLeftSuffix bool) string {
 	   [] 
        SWAP
 	   <%
-		   SWAP $include_labels SUBMAP 'sub_labels' STORE 
-		   $empty_series + REVERSE  MERGE $sub_labels RELABEL DEDUP
-		   +
+		    SWAP $include_labels SUBMAP 'sub_labels' STORE
+            '' 'series_name' STORE 
+            true 'same_name' STORE
+            DUP 
+            <% SIZE 0 > %>
+			<% 
+				DUP 
+				0 GET NAME 'series_name' STORE  
+				DUP
+				<% 
+				<%
+					NAME $series_name !=
+				%>
+				<%
+					false 'same_name' STORE
+				%>
+				IFT
+				%>
+				FOREACH
+			%> IFT  
+			$empty_series + REVERSE  MERGE $sub_labels RELABEL DEDUP
+			<% $same_name $empty_series NAME $series_name == && ! %> 
+			<%
+				{ '` + ShouldRemoveNameLabel + `' 'true' } SETATTRIBUTES
+			%> 
+			IFT
+		    +
 	   %>
 	   FOREACH
    %>
    LMAP
-   FLATTEN NONEMPTY { 'hash_945fa9bc3027d7025e3' '' } RELABEL
+   FLATTEN { 'hash_945fa9bc3027d7025e3' '' } RELABEL
 `
+	return mc2
+}
+
+func getSingleOperatorScript(operator string) string {
+	promString := ""
+	switch operator {
+	case "%":
+		promString = "modulo"
+	case "**":
+		promString = "pow"
+	}
+	mc2 := `
+	'inputs' STORE
+	true 'shouldRemoveName' STORE 
+	$inputs 0 GET SIZE 1 == 'scalarZeroInput' STORE
+	$inputs 0 GET <% NAME 'scalar' == $scalarZeroInput && 'scalarZeroInput' STORE %> FOREACH
+	$inputs 1 GET SIZE 1 == 'scalarOneInput' STORE
+	$inputs 1 GET <% NAME 'scalar' == $scalarOneInput && 'scalarOneInput' STORE %> FOREACH
+	<%
+		$scalarZeroInput $scalarOneInput || 
+	%>
+	<% 
+		<%
+			$scalarZeroInput
+		%>
+		<%
+			$inputs 1 GET 
+			$inputs 0 GET 'raw' STORE
+		%> 
+		<%
+			$inputs 0 GET 
+			$inputs 1 GET 'raw' STORE
+		%> 
+		IFTE
+		[] SWAP
+		NULL PARTITION
+		<%
+			SWAP DROP DUP CLONEEMPTY 'metaSeries' STORE 'filteredSeries' STORE
+			<%
+				$scalarZeroInput
+			%>
+			<%
+				$raw CLONE SWAP DROP $filteredSeries APPEND 
+			%>
+			<%
+				$filteredSeries $raw CLONE SWAP DROP APPEND
+			%> 
+			IFTE
+			
+			[
+              SWAP
+              []
+              <%
+                DUP 0 GET 
+                SWAP 
+                7 GET 
+                DUP 0 GET SWAP 1 GET ` + operator + `
+                NaN SWAP
+                NaN SWAP
+                NaN SWAP
+              %> 
+              MACROREDUCER
+            ] REDUCE
+			$metaSeries SWAP + MERGE
+			+
+		%>
+		FOREACH
+		FLATTEN
+	%>
+	<%
+        '` + promString + ` across GTS not supported' MSGFAIL
+    %>
+	IFTE
+	`
 	return mc2
 }
 
@@ -585,46 +997,108 @@ func getComparatorScript(operator string) string {
 	mc2 := `
 
 	'inputs' STORE
-	$inputs 
+
+	false 'shouldRemoveName' STORE 
+	$inputs 0 GET SIZE 1 == 'scalarZeroInput' STORE
+	$inputs 0 GET <% NAME 'scalar' == $scalarZeroInput && 'scalarZeroInput' STORE %> FOREACH
+	$inputs 1 GET SIZE 1 == 'scalarOneInput' STORE
+	$inputs 1 GET <% NAME 'scalar' == $scalarOneInput && 'scalarOneInput' STORE %> FOREACH
+	<%
+		$scalarZeroInput $scalarOneInput || 
+	%>
 	<% 
-		DROP 
 		<%
-			// Case were hashlabels contains on labels
-			$hashlabel SIZE 1 == $hashlabel 'hash_945fa9bc3027d7025e3' CONTAINS SWAP DROP AND !
+			$scalarZeroInput
 		%>
 		<%
-			$hashlabel
-			PARTITION
-			[]
-			SWAP
+			$inputs 1 GET 
+			$inputs 0 GET 'raw' STORE
+		%> 
+		<%
+			$inputs 0 GET 
+			$inputs 1 GET 'raw' STORE
+		%> 
+		IFTE
+		[] SWAP
+		NULL PARTITION
+		<%
+			SWAP DROP DUP CLONEEMPTY 'metaSeries' STORE 'filteredSeries' STORE
 			<%
-				SWAP DROP 
-				MERGE DEDUP
-				+
+				$scalarZeroInput
 			%>
-			FOREACH
-		%>
-		IFT 
-		@HASHLABELS 
-		DUP 
-		APPEND 
-	%> LMAP 'inputs' STORE
-	$inputs 0 GET 'init' STORE 
-	[ $inputs 0 GET $inputs 1 GET [ 'hash_945fa9bc3027d7025e3' ] ` + operator + ` ]  APPLY NONEMPTY { 'hash_945fa9bc3027d7025e3' '' } RELABEL @HASHLABELS
-	<% DROP 
-		[ SWAP DUP LABELS 'hash_945fa9bc3027d7025e3' GET 'intHash' STORE  ] 'maskSeries' STORE 
-		[ $init [] { 'hash_945fa9bc3027d7025e3' $intHash } filter.bylabels ] FILTER 'filterSeries' STORE
-		<% $filterSeries SIZE 0 == %>
-		<% $filterSeries %>
-		<%
+			<%
+				[ $raw $filteredSeries [] ` + operator + ` ]  APPLY
+				%>
+			<%
+				[ $filteredSeries $raw [] ` + operator + ` ]  APPLY
+			%> 
+			IFTE
+			$metaSeries SWAP + MERGE
+			'maskSeries' STORE
 			[ 
-				$maskSeries
-				$filterSeries 
-				[] op.mask 
+					[ $maskSeries ]
+					$filteredSeries 
+					[] op.mask 
 			] APPLY 
-		%> IFTE
-	%> LMAP 
-	FLATTEN NONEMPTY { 'hash_945fa9bc3027d7025e3' '' } RELABEL
+			+
+		%>
+		FOREACH
+		FLATTEN
+	%>
+	<% 
+		true 'shouldRemoveName' STORE 
+		$inputs 
+		<% 
+			DROP 
+			<%
+				// Case were hashlabels contains on labels
+				$hashlabel SIZE 1 == $hashlabel 'hash_945fa9bc3027d7025e3' CONTAINS SWAP DROP AND !
+			%>
+			<%
+				$hashlabel
+				PARTITION
+				[]
+				SWAP
+				<%
+					SWAP DROP 
+					MERGE DEDUP
+					+
+				%>
+				FOREACH
+			%>
+			IFT 
+			@HASHLABELS 
+			DUP 
+			APPEND 
+		%> LMAP 'inputs' STORE
+		$inputs 0 GET 
+		true 'skipInputZero' STORE
+		DUP <% NAME 'scalar' == $skipInputZero && 'skipInputZero' STORE %> FOREACH
+		<% $skipInputZero %> <% DROP $inputs 1 GET %> IFT
+		'init' STORE 
+		[ $inputs 0 GET $inputs 1 GET [ 'hash_945fa9bc3027d7025e3' ] ` + operator + ` ]  APPLY NONEMPTY { 'hash_945fa9bc3027d7025e3' '' } RELABEL @HASHLABELS
+		<% 
+			$return_bool !
+		%>
+		<%
+			<% DROP 
+				[ SWAP DUP LABELS 'hash_945fa9bc3027d7025e3' GET 'intHash' STORE  ] 'maskSeries' STORE 
+				[ $init [] { 'hash_945fa9bc3027d7025e3' $intHash } filter.bylabels ] FILTER 'filterSeries' STORE
+				<% $filterSeries SIZE 0 == %>
+				<% $filterSeries %>
+				<%
+					[ 
+						$maskSeries
+						$filterSeries 
+						[] op.mask 
+					] APPLY 
+				%> IFTE
+			%> LMAP 
+		%>
+		IFT
+		FLATTEN { 'hash_945fa9bc3027d7025e3' '' } RELABEL
+	%>
+	IFTE
 	`
 	return mc2
 }
@@ -634,15 +1108,15 @@ var binaryExprEquivalences = map[string]binaryExprEquivalence{
 		ScalarToScalar: " + ",
 		VectorToScalar: "[ SWAP $right TODOUBLE mapper.add 0 0 0 ] MAP\n",
 		ScalarToVector: "[ SWAP $left TODOUBLE mapper.add 0 0 0 ] MAP\n",
-		VectorToVector: "[ SWAP  DUP 0 GET @HASHLABELS SWAP 1 GET @HASHLABELS $hashlabel op.add ]  APPLY NONEMPTY { 'hash_945fa9bc3027d7025e3' '' } RELABEL \n",
+		VectorToVector: "[ SWAP  DUP 0 GET @HASHLABELS SWAP 1 GET @HASHLABELS $hashlabel op.add ]  APPLY { 'hash_945fa9bc3027d7025e3' '' } RELABEL \n",
 		GroupLeft:      groupOnPer("$left", "op.add", false),
 		GroupRight:     groupOnPer("$right", "op.add", false),
 	},
 	"-": {
 		ScalarToScalar: " - ",
 		VectorToScalar: "[ SWAP 0 $right TODOUBLE - mapper.add 0 0 0 ] MAP\n",
-		ScalarToVector: "[ SWAP [ SWAP -1 mapper.mul 0 0 0 ] MAP $left TODOUBLE mapper.add 0 0 0 ] MAP\n",
-		VectorToVector: "[ SWAP  DUP 0 GET @HASHLABELS '%2B.tosub' RENAME SWAP 1 GET @HASHLABELS $hashlabel op.sub ]  APPLY NONEMPTY { 'hash_945fa9bc3027d7025e3' '' } RELABEL \n",
+		ScalarToVector: "[ SWAP [ SWAP -1.0 mapper.mul 0 0 0 ] MAP $left TODOUBLE mapper.add 0 0 0 ] MAP\n",
+		VectorToVector: "[ SWAP  DUP 0 GET @HASHLABELS '%2B.tosub' RENAME SWAP 1 GET @HASHLABELS $hashlabel op.sub ]  APPLY { 'hash_945fa9bc3027d7025e3' '' } RELABEL \n",
 		GroupLeft:      groupOnPer("$left", "op.sub", true),
 		GroupRight:     groupOnPer("$right", "op.sub", true),
 	},
@@ -650,78 +1124,78 @@ var binaryExprEquivalences = map[string]binaryExprEquivalence{
 		ScalarToScalar: " * ",
 		VectorToScalar: "[ SWAP $right TODOUBLE mapper.mul 0 0 0 ] MAP\n",
 		ScalarToVector: "[ SWAP $left TODOUBLE mapper.mul 0 0 0 ] MAP\n",
-		VectorToVector: "[ SWAP  DUP 0 GET @HASHLABELS SWAP 1 GET @HASHLABELS $hashlabel op.mul ]  APPLY NONEMPTY { 'hash_945fa9bc3027d7025e3' '' } RELABEL \n",
+		VectorToVector: "[ SWAP  DUP 0 GET @HASHLABELS SWAP 1 GET @HASHLABELS $hashlabel op.mul ]  APPLY { 'hash_945fa9bc3027d7025e3' '' } RELABEL \n",
 		GroupLeft:      groupOnPer("$left", "op.mul", false),
 		GroupRight:     groupOnPer("$right", "op.mul", false),
 	},
 	"/": {
 		ScalarToScalar: " / ",
-		VectorToScalar: "[ SWAP 1 $right TODOUBLE / mapper.mul 0 0 0 ] MAP\n",
-		ScalarToVector: warpHashLabels + " [ SWAP @HASHLABELS DUP [ SWAP $left mapper.replace 0 0 0 ] MAP SWAP @HASHLABELS $hashlabel op.div ]  APPLY NONEMPTY { 'hash_945fa9bc3027d7025e3' '' } RELABEL\n",
-		VectorToVector: "[ SWAP  DUP 0 GET @HASHLABELS '%2B.todiv' RENAME SWAP 1 GET @HASHLABELS $hashlabel op.div ]  APPLY NONEMPTY { 'hash_945fa9bc3027d7025e3' '' } RELABEL \n",
+		VectorToScalar: "[ SWAP 1.0 $right TODOUBLE / mapper.mul 0 0 0 ] MAP\n",
+		ScalarToVector: warpHashLabels + " [ SWAP DUP [ SWAP $left mapper.replace 0 0 0 ] MAP @HASHLABELS  SWAP @HASHLABELS $hashlabel op.div ]  APPLY { 'hash_945fa9bc3027d7025e3' '' } RELABEL\n",
+		VectorToVector: "[ SWAP  DUP 0 GET @HASHLABELS '%2B.todiv' RENAME SWAP 1 GET @HASHLABELS $hashlabel op.div ]  APPLY { 'hash_945fa9bc3027d7025e3' '' } RELABEL \n",
 		GroupLeft:      groupOnPer("$left", "op.div", true),
 		GroupRight:     groupOnPer("$right", "op.div", true),
 	},
 	"%": {
 		ScalarToScalar: " % ",
-		VectorToScalar: NewSimpleMacroMapper("$right %"),
-		ScalarToVector: NewSimpleMacroMapper("$left %"),
-		VectorToVector: "'modulo across GTS not supported' MSGFAIL\n", // FIXME:
+		VectorToScalar: NewSimpleMacroMapper("TODOUBLE $right TODOUBLE %"),
+		ScalarToVector: NewSimpleMacroMapper("TODOUBLE $left TODOUBLE SWAP %"),
+		VectorToVector: getSingleOperatorScript("%"),                  // FIXME: still not supported between GTS
 		GroupLeft:      "'modulo across GTS not supported' MSGFAIL\n", // FIXME:
 		GroupRight:     "'modulo across GTS not supported' MSGFAIL\n", // FIXME:
 	},
 	"^": {
 		ScalarToScalar: " ** ",
 		VectorToScalar: "[ SWAP $right TODOUBLE mapper.pow 0 0 0 ] MAP\n",
-		ScalarToVector: "'pow with scalar across GTS not supported' MSGFAIL\n", // FIXME:
-		VectorToVector: "'pow across GTS not supported' MSGFAIL\n",             // FIXME:
-		GroupLeft:      "'pow across GTS not supported' MSGFAIL\n",             // FIXME:
-		GroupRight:     "'pow across GTS not supported' MSGFAIL\n",             // FIXME:
+		ScalarToVector: NewSimpleMacroMapper("TODOUBLE $left TODOUBLE SWAP **"),
+		VectorToVector: getSingleOperatorScript("**"),              // FIXME: still not supported between GTS
+		GroupLeft:      "'pow across GTS not supported' MSGFAIL\n", // FIXME:
+		GroupRight:     "'pow across GTS not supported' MSGFAIL\n", // FIXME:
 	},
 	">": {
 		ScalarToScalar: " > ",
-		VectorToScalar: "[ SWAP $right DUP TYPEOF <% 'LONG' == %> <% TODOUBLE %> IFT mapper.gt 0 0 0 ] MAP\n NONEMPTY\n",
-		ScalarToVector: "[ SWAP $left DUP TYPEOF <% 'LONG' == %> <% TODOUBLE %> IFT mapper.le 0 0 0 ] MAP\n NONEMPTY\n",
+		VectorToScalar: "[ SWAP $right DUP TYPEOF <% 'LONG' == %> <% TODOUBLE %> IFT mapper.gt 0 0 0 ] MAP\n",
+		ScalarToVector: "[ SWAP $left DUP TYPEOF <% 'LONG' == %> <% TODOUBLE %> IFT mapper.le 0 0 0 ] MAP\n",
 		VectorToVector: getComparatorScript("op.gt"),
 		GroupLeft:      groupOnPer("$left", "op.gt", false),
 		GroupRight:     groupOnPer("$right", "op.gt", false),
 	},
 	"<": {
 		ScalarToScalar: " < ",
-		VectorToScalar: "[ SWAP $right DUP TYPEOF <% 'LONG' == %> <% TODOUBLE %> IFT mapper.lt 0 0 0 ] MAP\n NONEMPTY\n",
-		ScalarToVector: "[ SWAP $left DUP TYPEOF <% 'LONG' == %> <% TODOUBLE %> IFT mapper.ge 0 0 0 ] MAP\n NONEMPTY\n",
+		VectorToScalar: "[ SWAP $right DUP TYPEOF <% 'LONG' == %> <% TODOUBLE %> IFT mapper.lt 0 0 0 ] MAP\n",
+		ScalarToVector: "[ SWAP $left DUP TYPEOF <% 'LONG' == %> <% TODOUBLE %> IFT mapper.ge 0 0 0 ] MAP\n",
 		VectorToVector: getComparatorScript("op.lt"),
 		GroupLeft:      groupOnPer("$left", "op.lt", false),
 		GroupRight:     groupOnPer("$right", "op.lt", false),
 	},
 	"==": {
 		ScalarToScalar: " == ",
-		VectorToScalar: "[ SWAP $right DUP TYPEOF <% 'LONG' == %> <% TODOUBLE %> IFT mapper.eq 0 0 0 ] MAP\n NONEMPTY\n",
-		ScalarToVector: "[ SWAP $left DUP TYPEOF <% 'LONG' == %> <% TODOUBLE %> IFT mapper.eq 0 0 0 ] MAP\n NONEMPTY\n",
+		VectorToScalar: "[ SWAP $right DUP TYPEOF <% 'LONG' == %> <% TODOUBLE %> IFT mapper.eq 0 0 0 ] MAP\n",
+		ScalarToVector: "[ SWAP $left DUP TYPEOF <% 'LONG' == %> <% TODOUBLE %> IFT mapper.eq 0 0 0 ] MAP\n",
 		VectorToVector: getComparatorScript("op.eq"),
 		GroupLeft:      groupOnPer("$left", "op.eq", false),
 		GroupRight:     groupOnPer("$right", "op.eq", false),
 	},
 	"!=": {
 		ScalarToScalar: " != ",
-		VectorToScalar: "[ SWAP $right DUP TYPEOF <% 'LONG' == %> <% TODOUBLE %> IFT mapper.ne 0 0 0 ] MAP\n NONEMPTY\n",
-		ScalarToVector: "[ SWAP $left DUP TYPEOF <% 'LONG' == %> <% TODOUBLE %> IFT mapper.ne 0 0 0 ] MAP\n NONEMPTY\n",
+		VectorToScalar: "[ SWAP $right DUP TYPEOF <% 'LONG' == %> <% TODOUBLE %> IFT mapper.ne 0 0 0 ] MAP\n",
+		ScalarToVector: "[ SWAP $left DUP TYPEOF <% 'LONG' == %> <% TODOUBLE %> IFT mapper.ne 0 0 0 ] MAP\n",
 		VectorToVector: getComparatorScript("op.ne"),
 		GroupLeft:      groupOnPer("$left", "op.ne", false),
 		GroupRight:     groupOnPer("$right", "op.ne", false),
 	},
 	">=": {
 		ScalarToScalar: " >= ",
-		VectorToScalar: "[ SWAP $right DUP TYPEOF <% 'LONG' == %> <% TODOUBLE %> IFT mapper.ge 0 0 0 ] MAP\n NONEMPTY\n",
-		ScalarToVector: "[ SWAP $left DUP TYPEOF <% 'LONG' == %> <% TODOUBLE %> IFT mapper.lt 0 0 0 ] MAP\n NONEMPTY\n",
+		VectorToScalar: "[ SWAP $right DUP TYPEOF <% 'LONG' == %> <% TODOUBLE %> IFT mapper.ge 0 0 0 ] MAP\n",
+		ScalarToVector: "[ SWAP $left DUP TYPEOF <% 'LONG' == %> <% TODOUBLE %> IFT mapper.lt 0 0 0 ] MAP\n",
 		VectorToVector: getComparatorScript("op.ge"),
 		GroupLeft:      groupOnPer("$left", "op.ge", false),
 		GroupRight:     groupOnPer("$right", "op.ge", false),
 	},
 	"<=": {
 		ScalarToScalar: " <= ",
-		VectorToScalar: "[ SWAP $right DUP TYPEOF <% 'LONG' == %> <% TODOUBLE %> IFT mapper.le 0 0 0 ] MAP\n NONEMPTY\n",
-		ScalarToVector: "[ SWAP $left DUP TYPEOF <% 'LONG' == %> <% TODOUBLE %> IFT mapper.gt 0 0 0 ] MAP\n NONEMPTY\n",
+		VectorToScalar: "[ SWAP $right DUP TYPEOF <% 'LONG' == %> <% TODOUBLE %> IFT mapper.le 0 0 0 ] MAP\n",
+		ScalarToVector: "[ SWAP $left DUP TYPEOF <% 'LONG' == %> <% TODOUBLE %> IFT mapper.gt 0 0 0 ] MAP\n",
 		VectorToVector: getComparatorScript("op.le"),
 		GroupLeft:      groupOnPer("$left", "op.le", false),
 		GroupRight:     groupOnPer("$right", "op.le", false),
@@ -804,19 +1278,32 @@ func convertBinaryExpr(b *bytes.Buffer, op string, leftNodeType string, rightNod
 	switch {
 	case strings.Contains(leftNodeType, "NumberLiteralPayload") && strings.Contains(rightNodeType, "NumberLiteralPayload"):
 		b.WriteString(binaryExprEquivalences[op].ScalarToScalar)
-		b.WriteString(" 'value' STORE [ $start $end ] [] [] [] [ $value DUP ] MAKEGTS 'scalar' RENAME\n")
+		b.WriteString(" TODOUBLE 'value' STORE [ $start $end ] [] [] [] [ $value DUP ] MAKEGTS { '" + ShouldRemoveNameLabel + "' 'true' } SETATTRIBUTES 'scalar' RENAME\n")
 		b.WriteString(" [ SWAP bucketizer.mean $end $step $instant ] BUCKETIZE INTERPOLATE SORT \n")
 	case !strings.Contains(leftNodeType, "NumberLiteralPayload") && strings.Contains(rightNodeType, "NumberLiteralPayload"):
 		b.WriteString(binaryExprEquivalences[op].VectorToScalar)
+		switch op {
+		case "!=", ">", ">=", "<=", "<", "==":
+		default:
+			b.WriteString("{ '" + ShouldRemoveNameLabel + "' 'true' } SETATTRIBUTES \n")
+		}
 	case !strings.Contains(rightNodeType, "NumberLiteralPayload") && strings.Contains(leftNodeType, "NumberLiteralPayload"):
 		b.WriteString(binaryExprEquivalences[op].ScalarToVector)
+		switch op {
+		case "!=", ">", ">=", "<=", "<", "==":
+		default:
+			b.WriteString("{ '" + ShouldRemoveNameLabel + "' 'true' } SETATTRIBUTES \n")
+		}
 	case !strings.Contains(leftNodeType, "NumberLiteralPayload") && !strings.Contains(rightNodeType, "NumberLiteralPayload"):
 		if card == "many-to-one" {
 			b.WriteString(warpHashLabels + "\n" + binaryExprEquivalences[op].GroupLeft)
 		} else if card == "one-to-many" {
 			b.WriteString(warpHashLabels + "\n" + binaryExprEquivalences[op].GroupRight)
 		} else {
+			b.WriteString("true 'shouldRemoveName' STORE \n")
+			b.WriteString("DUP <% <% <% ATTRIBUTES '" + ShouldRemoveNameLabel + "' CONTAINSKEY %> <% '" + ShouldRemoveNameLabel + "' GET TOBOOLEAN $shouldRemoveName && 'shouldRemoveName' STORE %> <% DROP %> IFTE %> FOREACH %> FOREACH \n")
 			b.WriteString(warpHashLabels + "\n" + binaryExprEquivalences[op].VectorToVector)
+			b.WriteString("<% $shouldRemoveName %> <% { '" + ShouldRemoveNameLabel + "' 'true' } SETATTRIBUTES  %> IFT \n")
 		}
 	}
 }

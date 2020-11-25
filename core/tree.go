@@ -11,10 +11,11 @@ type payload interface{}
 // Node is the struct holding the query tree.
 // Needed for promql, it served also for Graphite protocol
 type Node struct {
-	Level   int
-	Left    *Node
-	Right   *Node
-	Payload payload
+	Level       int
+	Left        *Node
+	Right       *Node
+	Payload     payload
+	ChildLabels []string
 }
 
 // NewNode is creating a new node with a specific type and Payload
@@ -58,14 +59,15 @@ func NewEmptyNode() *Node {
 
 // FetchPayload is the payload for the fetch function
 type FetchPayload struct {
-	ClassName string
-	Labels    map[string]string
-	End       string
-	Start     string
-	Step      string
-	Offset    string
-	Absent    bool
-	Instant   bool
+	ClassName   string
+	Labels      map[string]string
+	End         string
+	Start       string
+	Step        string
+	Offset      string
+	BucketRange string
+	Absent      bool
+	Instant     bool
 }
 
 // AggregatePayload represents an aggregation operation on a vector.
@@ -75,6 +77,11 @@ type AggregatePayload struct {
 	Grouping         []string // The labels by which to group the vector.
 	Without          bool     // Whether to drop the given labels rather than keep them.
 	KeepCommonLabels bool     // Whether to keep common labels among result elements.
+}
+
+// UnaryExprPayload inverse data
+type UnaryExprPayload struct {
+	Op string
 }
 
 // NumberLiteralPayload is holding a number
@@ -90,6 +97,7 @@ type BinaryExprPayload struct {
 	FilteredLabels []string
 	IncludeLabels  []string
 	Card           string
+	ReturnBool     bool
 }
 
 // FunctionPayload represents a function of the expression language and is
@@ -99,6 +107,7 @@ type FunctionPayload struct {
 	ArgTypes     []model.ValueType
 	Args         []string
 	OptionalArgs int
+	Prefix       string
 }
 
 // Context is holding the informations like token, start, end, and so on
@@ -114,12 +123,10 @@ type BucketizePayload struct {
 	LastBucket   string
 	BucketSpan   string
 	BucketCount  string
-	BucketRange  string
 	PreBucketize string
 	Filler       string
 	Op           string
 	Step         string
-	ApplyRate    bool
 	Absent       bool
 }
 
@@ -147,6 +154,7 @@ type MapperPayload struct {
 	PreWindow   string
 	PostWindow  string
 	Occurrences string
+	Suffix      string
 }
 
 // ReducerPayload is the payload to reduce GTS' value in the tree

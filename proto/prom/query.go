@@ -89,14 +89,16 @@ type prometheusResultResponse struct {
 // Context is holding the informations like token, start, end, and so on
 type Context struct {
 	core.Context
-	Expr        promql.Expr
-	Bucketizer  string
-	Mapper      string
-	MapperValue string
-	HasMapper   bool
-	IsInstant   bool
-	IsRate      bool
-	hasAbsent   bool
+	Expr         promql.Expr
+	Bucketizer   string
+	Mapper       string
+	MapperValue  string
+	HasMapper    bool
+	HasFunction  bool
+	FunctionName string
+	Args         []string
+	IsInstant    bool
+	hasAbsent    bool
 }
 
 // QueryRange evaluates an expression query over a range of time:
@@ -239,8 +241,10 @@ func (p *QL) QueryRange(w http.ResponseWriter, r *http.Request) {
 		respondWithError(w, err, http.StatusServiceUnavailable)
 		return
 	}
-	// HACK : replace NaN values from Warp to 0
-	s := strings.Replace(string(buffer), "NaN", "0", -1)
+
+	// HACK : replace Infinity values from Warp to Inf
+	s := strings.Replace(string(buffer), "Infinity", "+Inf", -1)
+	s = strings.Replace(s, "-+Inf", "-Inf", -1)
 	buffer = []byte(s)
 
 	responses := [][]core.GeoTimeSeries{}
@@ -283,7 +287,17 @@ func respondWithError(w http.ResponseWriter, err error, statusCode int) {
 		resp.ErrorType = errorExec
 	}
 
-	resp.Error = err.Error()
+	if strings.Contains(err.Error(), "in section [TOP] (MSGFAIL") {
+		errors := strings.Split(err.Error(), "in section [TOP] (MSGFAIL ")
+		if len(errors) > 0 {
+			resp.Error = strings.TrimSuffix(errors[1], ")")
+			// when their is a second )
+			resp.Error = strings.TrimSuffix(resp.Error, ")")
+		}
+	} else {
+		resp.Error = err.Error()
+	}
+
 	b, err := json.Marshal(&resp)
 	if err != nil {
 		panic(err)

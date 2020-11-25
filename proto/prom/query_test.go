@@ -365,7 +365,7 @@ var tests = []testStruct{
 	{
 		Query: `stddev(http_requests_total)`,
 		ShouldContains: []string{
-			"[ SWAP [ ] DUP 'equivalenceClass' STORE reducer.sd ] REDUCE"},
+			"[ SWAP [ ] DUP 'equivalenceClass' STORE true reducer.sd ] REDUCE"},
 	},
 	{
 		Query: `stdvar(http_requests_total)`,
@@ -412,7 +412,7 @@ var tests = []testStruct{
 	{
 		Query: `time()`,
 		ShouldContains: []string{
-			"[ $start $end ] [] [] [] [ 1 DUP ] MAKEGTS 'scalar' RENAME",
+			"[ $start $end ] [] [] [] [ 1 DUP ] { '" + core.ShouldRemoveNameLabel + "' 'true' } SETATTRIBUTES MAKEGTS 'scalar' RENAME",
 			"[ SWAP bucketizer.mean $end $step $instant ] BUCKETIZE INTERPOLATE SORT",
 			"[ SWAP mapper.tick 0 0 0 ] MAP [ SWAP 0.000001 mapper.mul 0 0 0 ] MAP"},
 	},
