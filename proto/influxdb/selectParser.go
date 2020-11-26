@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net/http"
+	"regexp"
 	"strings"
 
 	"github.com/influxdata/influxql"
@@ -54,7 +55,7 @@ func (p *InfluxParser) getSelectStatementScript(statement *influxql.SelectStatem
 			if source.Regex != nil {
 				p.Classnames = append(p.Classnames, source.Regex.Val.String())
 			} else {
-				p.Classnames = append(p.Classnames, source.Name)
+				p.Classnames = append(p.Classnames, regexp.QuoteMeta(source.Name))
 			}
 		case *influxql.SubQuery:
 			subQueries = append(subQueries, source.Statement)
@@ -177,7 +178,14 @@ func (p *InfluxParser) getSelectStatementScript(statement *influxql.SelectStatem
 		}
 		varRefNames := influxql.ExprNames(field.Expr)
 		for _, ref := range varRefNames {
-			findClass += classname + ")" + separator + "(" + ref.Val + ")|"
+			valueName := ref.Val
+			if strings.HasPrefix(valueName, "/") && strings.HasSuffix(valueName, "/") {
+				valueName = strings.TrimPrefix(valueName, "/")
+				valueName = strings.TrimSuffix(valueName, "/")
+			} else {
+				valueName = regexp.QuoteMeta(valueName)
+			}
+			findClass += classname + ")" + separator + "(" + valueName + ")|"
 		}
 
 		// Handle case of misformed varref returned by influx library
@@ -330,6 +338,16 @@ func (p *InfluxParser) getSelectStatementScript(statement *influxql.SelectStatem
 
 		for _, ref := range varRefNames {
 			_, hasASeries = selectValidField[ref.Val]
+
+			valueName := ref.Val
+
+			// Case Influx RegExp
+			if strings.HasPrefix(valueName, "/") && strings.HasSuffix(valueName, "/") {
+				valueName = strings.TrimPrefix(valueName, "/")
+				valueName = strings.TrimSuffix(valueName, "/")
+				hasASeries, _ = regexp.MatchString(valueName, ref.Val)
+			}
+
 			if hasASeries || starQuery {
 				break
 			}

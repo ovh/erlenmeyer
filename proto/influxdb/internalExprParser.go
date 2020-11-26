@@ -3,6 +3,7 @@ package influxdb
 import (
 	"bytes"
 	"fmt"
+	"regexp"
 	"strings"
 
 	"github.com/influxdata/influxql"
@@ -428,6 +429,11 @@ func (p *InfluxParser) parseFetch(name string, fetchType influxql.DataType, sele
 	valueName := name
 	if name == "*" {
 		valueName = ".*"
+	} else if strings.HasPrefix(name, "/") && strings.HasSuffix(name, "/") {
+		valueName = strings.TrimPrefix(valueName, "/")
+		valueName = strings.TrimSuffix(valueName, "/")
+	} else {
+		valueName = regexp.QuoteMeta(valueName)
 	}
 
 	mc2 := ""
