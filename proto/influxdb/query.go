@@ -9,6 +9,7 @@ import (
 	"math"
 	"net/http"
 	"net/http/httputil"
+	"regexp"
 	"sort"
 	"strings"
 	"time"
@@ -282,7 +283,7 @@ func (showStatement *InfluxShowStatement) parseInfluxSeries(statementid int, txn
 			if source.Regex != nil {
 				classnames = append(classnames, source.Regex.Val.String()+".*")
 			} else {
-				classnames = append(classnames, source.Name)
+				classnames = append(classnames, regexp.QuoteMeta(source.Name))
 			}
 		}
 	}
