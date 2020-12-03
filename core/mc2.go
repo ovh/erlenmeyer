@@ -53,7 +53,7 @@ func (n *Node) ToWarpScript(token string, query string, step string) string {
 	b.WriteString("\t [ SWAP bucketizer.last $end $step 0 ] BUCKETIZE FILLPREVIOUS FILLNEXT \n")
 	b.WriteString("\t { '" + ShouldRemoveNameLabel + "' 'true' } SETATTRIBUTES \n")
 	b.WriteString("%> IFT \n")
-	b.WriteString("\nNONEMPTY SORT UNBUCKETIZE [ SWAP mapper.tostring 0 0 0 ] MAP\n")
+	b.WriteString("\nNONEMPTY SORT UNBUCKETIZE\n")
 
 	return b.String()
 }

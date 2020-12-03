@@ -15,7 +15,10 @@ import (
 
 func execute(token, txn string, tree *core.Node) ([]byte, error) {
 	server := core.NewWarpServer(viper.GetString("warp_endpoint"), "graphite-query")
-	resp, err := server.Query(tree.ToWarpScript(token, "", ""), txn)
+	mc2 := tree.ToWarpScript(token, "", "")
+	// remove NaN in Graphite
+	mc2 += "\n[ SWAP mapper.finite 0 0 0 ] MAP\n"
+	resp, err := server.Query(mc2, txn)
 	if err != nil {
 		wErr := resp.Header.Get("X-Warp10-Error-Message")
 		if wErr == "" {

@@ -204,6 +204,7 @@ func (p *QL) QueryRange(w http.ResponseWriter, r *http.Request) {
 	tree := evaluator.GenerateQueryTree(context)
 
 	mc2 := tree.ToWarpScriptWithTime(token, context.Query, context.Step, context.Start, context.End)
+	mc2 += "\n[ SWAP mapper.tostring 0 0 0 ] MAP\n"
 
 	log.WithFields(log.Fields{
 		"query":  context.Query,
@@ -401,6 +402,7 @@ func (p *QL) InstantQuery(w http.ResponseWriter, r *http.Request) {
 	tree := evaluator.GenerateInstantQueryTree(context)
 
 	mc2 := tree.ToWarpScriptWithTime(token, context.Query, context.Step, context.Start, context.End)
+	mc2 += "\n[ SWAP mapper.tostring 0 0 0 ] MAP\n"
 
 	log.WithFields(log.Fields{
 		"query":   context.Query,
