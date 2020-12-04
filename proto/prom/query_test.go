@@ -51,6 +51,7 @@ func TestWarpScriptGeneration(t *testing.T) {
 		fmt.Println(fmt.Sprintf("XXXXXXXX     %+v", tree))
 
 		mc2 := tree.ToWarpScript("abcd", context.Query, context.Step)
+		mc2 += "\n[ SWAP mapper.tostring 0 0 0 ] MAP\n"
 		fmt.Println("XXXXXXXX     generated: begin")
 		log.Println(mc2)
 		fmt.Println("XXXXXXXX     generated: end")
