@@ -175,7 +175,15 @@ func (i *InfluxDB) Query(w http.ResponseWriter, r *http.Request) {
 	}
 
 	i.ReqCounter.Inc()
+
+	if acceptHeader, ok := r.Header["Accept"]; ok && len(acceptHeader) > 0 && acceptHeader[0] != "*/*" {
+		w.Header().Set("Content-Type", strings.Join(acceptHeader, "; "))
+	} else {
+		w.Header().Set("Content-Type", "application/json")
+	}
+
 	w.WriteHeader(http.StatusOK)
+
 	if body != nil {
 		if _, err = w.Write(body); err != nil {
 			log.WithError(err).Error("Could not awnser to the influx request")
