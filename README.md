@@ -2,6 +2,8 @@
 
 Erlenmeyer is a Go Proxy used to parse multiple Open Source TimeSeries DataBase query (OpenTSDB, PromQL, Prometheus-remote_read, InfluxQL and Graphite) . Then they are translated into WarpScript to produce native [Warp 10](https://warp10.io/) queries.
 
+![Erlenmeyer: Time Series query translator](./assets/logo.png)
+
 You can test and run locally erlenemeyer following those [building steps](./doc/BUILDING.md).
 
 ## Supported protocols
