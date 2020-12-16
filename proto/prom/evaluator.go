@@ -324,7 +324,7 @@ UNBUCKETIZE
 		var functionPayload core.FunctionPayload
 		functionPayload.Name = ctx.FunctionName
 		functionPayload.Args = ctx.Args
-		functionPayload.Prefix = "<% $range $step < %> <% DROP [] %> IFT\n"
+		functionPayload.Prefix = ""
 		node.Left.Payload = functionPayload
 	}
 	node.Payload = bucketizePayload
