@@ -88,7 +88,7 @@ func warpToPrometheusResponseInstant(gtss []core.GeoTimeSeries, resultType strin
 		for _, value := range gtss[0].Values {
 			ts := value[0].(float64) // Casting as gts is an interface
 			ts /= 1000000.0          // Moving from us to ms
-			v = fmt.Sprintf("%f", value[1].(float64))
+			v = fmt.Sprintf("%v", value[1])
 			resp.Result = append(resp.Result, []interface{}{ts, v})
 		}
 		return resp, nil
