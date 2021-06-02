@@ -73,6 +73,7 @@ func initConfig() {
 
 	viper.SetDefault("timeunit", "us")
 	viper.SetDefault("prometheus.fillprevious.period", "5 m")
+	viper.SetDefault("metrics.enabled", true)
 
 	// Load user defined config
 	cfgFile := viper.GetString("config")
@@ -131,7 +132,9 @@ var RootCmd = &cobra.Command{
 		}
 
 		// Expose metrics on /metrics using prometheus
-		r.Any("/metrics", echo.WrapHandler(promhttp.Handler()))
+		if viper.GetBool("metrics.enabled") {
+			r.Any("/metrics", echo.WrapHandler(promhttp.Handler()))
+		}
 		r.Any("/", func(ctx echo.Context) error {
 			return ctx.NoContent(http.StatusOK)
 		})
