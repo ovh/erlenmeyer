@@ -54,9 +54,19 @@ func warpMetricstoPrometheus(gts core.GeoTimeSeries) prometheusResultResponse {
 	for _, value := range gts.Values {
 		ts := value[0].(float64) // Casting as gts is an interface
 		ts /= 1000000.0          // Moving from us to ms
-		v = fmt.Sprintf("%v", value[1])
 
-		p.Values = append(p.Values, []interface{}{ts, v})
+		// handling value case, when lat,long are specified string can occure from PromQL values
+		switch val := value[len(value)-1].(type) {
+		case float64:
+			v = fmt.Sprintf("%f", val)
+			p.Values = append(p.Values, []interface{}{ts, v})
+		case string:
+			floatVal, err := strconv.ParseFloat(val, 64)
+			if err == nil {
+				v = fmt.Sprintf("%f", floatVal)
+				p.Values = append(p.Values, []interface{}{ts, v})
+			}
+		}
 	}
 	return p
 }
@@ -69,9 +79,19 @@ func warpScalarToPrometheus(gts core.GeoTimeSeries) prometheusResultResponse {
 	for _, value := range gts.Values {
 		ts := value[0].(float64) // Casting as gts is an interface
 		ts /= 1000000.0          // Moving from us to ms
-		v = fmt.Sprintf("%f", value[1].(float64))
 
-		p.Values = append(p.Values, []interface{}{ts, v})
+		// handling value case, when lat,long are specified string can occure from PromQL values
+		switch val := value[len(value)-1].(type) {
+		case float64:
+			v = fmt.Sprintf("%f", val)
+			p.Values = append(p.Values, []interface{}{ts, v})
+		case string:
+			floatVal, err := strconv.ParseFloat(val, 64)
+			if err == nil {
+				v = fmt.Sprintf("%f", floatVal)
+				p.Values = append(p.Values, []interface{}{ts, v})
+			}
+		}
 	}
 	return p
 }
