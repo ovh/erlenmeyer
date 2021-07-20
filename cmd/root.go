@@ -74,6 +74,7 @@ func initConfig() {
 	viper.SetDefault("timeunit", "us")
 	viper.SetDefault("prometheus.fillprevious.period", "5 m")
 	viper.SetDefault("metrics.enabled", true)
+	viper.SetDefault("metrics.basicauth.enable", false)
 
 	// Load user defined config
 	cfgFile := viper.GetString("config")
@@ -133,7 +134,11 @@ var RootCmd = &cobra.Command{
 
 		// Expose metrics on /metrics using prometheus
 		if viper.GetBool("metrics.enabled") {
-			r.Any("/metrics", echo.WrapHandler(promhttp.Handler()))
+			if viper.GetBool("metrics.basicauth.enable") {
+				r.Any("/metrics", echo.WrapHandler(promhttp.Handler()), middlewares.BasicAuth())
+			} else {
+				r.Any("/metrics", echo.WrapHandler(promhttp.Handler()))
+			}
 		}
 		r.Any("/", func(ctx echo.Context) error {
 			return ctx.NoContent(http.StatusOK)
