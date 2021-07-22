@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"context"
+	"crypto/subtle"
 	"io/ioutil"
 	"net/http"
 	"os"
@@ -24,6 +25,7 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 	"github.com/willf/pad"
+	"golang.org/x/crypto/bcrypt"
 )
 
 func init() {
@@ -74,7 +76,7 @@ func initConfig() {
 	viper.SetDefault("timeunit", "us")
 	viper.SetDefault("prometheus.fillprevious.period", "5 m")
 	viper.SetDefault("metrics.enabled", true)
-	viper.SetDefault("metrics.basicauth.enable", false)
+	viper.SetDefault("metrics.basicauth.enabled", false)
 
 	// Load user defined config
 	cfgFile := viper.GetString("config")
@@ -134,8 +136,17 @@ var RootCmd = &cobra.Command{
 
 		// Expose metrics on /metrics using prometheus
 		if viper.GetBool("metrics.enabled") {
-			if viper.GetBool("metrics.basicauth.enable") {
-				r.Any("/metrics", echo.WrapHandler(promhttp.Handler()), middlewares.BasicAuth())
+			if viper.GetBool("metrics.basicauth.enabled") {
+				r.Any("/metrics", echo.WrapHandler(promhttp.Handler()), middleware.BasicAuth(
+					func(username, password string, c echo.Context) (bool, error) {
+						config_username := viper.GetString("metrics.basicauth.user")
+						hash_password := viper.GetString("metrics.basicauth.password")
+						if subtle.ConstantTimeCompare([]byte(username), []byte(config_username)) == 1 &&
+							bcrypt.CompareHashAndPassword([]byte(hash_password), []byte(password)) == nil {
+							return true, nil
+						}
+						return false, nil
+					}))
 			} else {
 				r.Any("/metrics", echo.WrapHandler(promhttp.Handler()))
 			}

@@ -35,6 +35,7 @@ require (
 	github.com/spf13/viper v1.3.2
 	github.com/stretchr/testify v1.6.1 // indirect
 	github.com/willf/pad v0.0.0-20160331131008-b3d780601022
+	golang.org/x/crypto v0.0.0-20190701094942-4def268fd1a4
 	golang.org/x/text v0.3.2 // indirect
 	google.golang.org/genproto v0.0.0-20190404172233-64821d5d2107 // indirect
 	google.golang.org/grpc v1.19.1 // indirect
