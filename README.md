@@ -25,6 +25,50 @@ At [OVHcloud](https://github.com/ovh), a lot of Metrics users were used to a pre
 
 Erlenmeyer is used in production.
 
+## Building erlenmeyer
+
+To build, erlenmeyer a go version >= go1.16 is required. During the installation steps, `golangci-lint` is installed. 
+Once golang is set up, build erlenmeyer with: 
+
+```sh
+make build
+
+# For dev build mode:
+make dev
+```
+
+To build erlenmeyer release binary use instead:
+
+```sh 
+make release
+```
+
+## Configuration
+
+You can retrieve a `config.sample.yml` file, that can be re-used to configure erlenmeyer. 
+
+```sh
+cp config.sample.yml erlenmeyer.yaml
+```
+
+In this `config.yaml` you will retrieve the Warp10 backend endpoint to set `warp_endpoint`. Erlenmeyer will use this endpoint to resolve WarpScript generated queries. 
+
+## Start erlenmeyer
+
+Erlenmeyer supports some flags as `--listen` to specify erlenmeyer listen address and `--config` to specify the config file to use. 
+
+More information about the supported flags are provided by executing: 
+
+```sh
+./build/erlenmeyer -h
+```
+
+To start erlenmeyer, execute:
+
+```sh
+./build/erlenmeyer --config erlenmeyer.yaml
+```
+
 ## Contributing
 
 Instructions on how to contribute to Erlenmeyer are available on the [Contributing](./CONTRIBUTING.md) page.
