@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/ovh/erlenmeyer/core"
+	"github.com/spf13/viper"
 )
 
 func contains(s []string, e string) bool {
@@ -43,11 +44,32 @@ func warpMetricstoPrometheus(gts core.GeoTimeSeries) prometheusResultResponse {
 		}
 	}
 
-	p.Metric = gts.Labels
+	gtsLabels := gts.Labels
+	if viper.GetBool("prometheus.query.labels.replace.enabled") {
+		gtsLabels = make(map[string]string, len(gts.Labels))
+		for k, v := range gts.Labels {
+			labelKey := k
+			labelValue := v
+			outputToReplace := viper.GetStringMapString("prometheus.query.labels.replace.map")
+			for replaceKey, replaceValue := range outputToReplace {
+				labelKey = strings.Replace(labelKey, replaceKey, replaceValue, -1)
+				labelValue = strings.Replace(labelValue, replaceKey, replaceValue, -1)
+			}
+			gtsLabels[labelKey] = labelValue
+		}
+	}
+	p.Metric = gtsLabels
 
 	// use Warp10 series name for PromQL name
 	if keepName {
-		p.Metric["__name__"] = gts.Class
+		gtsClass := gts.Class
+		if viper.GetBool("prometheus.query.classname.replace.enabled") {
+			outputToReplace := viper.GetStringMapString("prometheus.query.classname.replace.map")
+			for replaceKey, replaceValue := range outputToReplace {
+				gtsClass = strings.Replace(gtsClass, replaceKey, replaceValue, -1)
+			}
+		}
+		p.Metric["__name__"] = gtsClass
 	}
 
 	// Looping over values

@@ -6,6 +6,7 @@ import (
 	"io/ioutil"
 	"net/http"
 	"strconv"
+	"strings"
 	"text/template"
 
 	"github.com/gogo/protobuf/proto"
@@ -158,18 +159,34 @@ func getOperation(rh *prompb.ReadHints, nowMs int64) string {
 }
 
 func gtsToPromTS(gts core.GeoTimeSeries) *prompb.TimeSeries {
+	gtsClass := gts.Class
+	if viper.GetBool("prometheus.remote_read.meta.replace.enabled") {
+		outputToReplace := viper.GetStringMapString("prometheus.remote_read.meta.replace.map")
+		for replaceKey, replaceValue := range outputToReplace {
+			gtsClass = strings.Replace(gtsClass, replaceKey, replaceValue, -1)
+		}
+	}
 	ts := prompb.TimeSeries{
 		Labels: []*prompb.Label{{
 			Name:  prometheusClassNameLabel,
-			Value: gts.Class,
+			Value: gtsClass,
 		}},
 		Samples: make([]*prompb.Sample, len(gts.Values)),
 	}
 
 	for k, v := range gts.Labels {
+		labelKey := k
+		labelValue := v
+		if viper.GetBool("prometheus.remote_read.meta.replace.enabled") {
+			outputToReplace := viper.GetStringMapString("prometheus.remote_read.meta.replace.map")
+			for replaceKey, replaceValue := range outputToReplace {
+				labelKey = strings.Replace(labelKey, replaceKey, replaceValue, -1)
+				labelValue = strings.Replace(labelValue, replaceKey, replaceValue, -1)
+			}
+		}
 		ts.Labels = append(ts.Labels, &prompb.Label{
-			Name:  k,
-			Value: v,
+			Name:  labelKey,
+			Value: labelValue,
 		})
 	}
 
