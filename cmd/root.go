@@ -75,6 +75,13 @@ func initConfig() {
 	viper.SetDefault("prometheus.fillprevious.period", "5 m")
 	viper.SetDefault("metrics.enabled", true)
 
+	viper.SetDefault("prometheus.remote_read.meta.replace.enabled", false)
+	viper.SetDefault("prometheus.remote_read.meta.replace.map", make(map[string]string))
+	viper.SetDefault("prometheus.query.classname.replace.enabled", false)
+	viper.SetDefault("prometheus.query.classname.replace.map", make(map[string]string))
+	viper.SetDefault("prometheus.query.labels.replace.enabled", false)
+	viper.SetDefault("prometheus.query.labels.replace.map", make(map[string]string))
+
 	// Load user defined config
 	cfgFile := viper.GetString("config")
 	if cfgFile != "" {

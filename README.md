@@ -50,6 +50,31 @@ More information about the supported flags are provided by executing:
 
 At [OVHcloud](https://github.com/ovh), a lot of Metrics users were used to a previous TSDB experience with which they felt confortable and efficient. The goal of Erlenmeyer was to leverage their existing habits, while converging on the Metrics Time Series platform. Hence we decided to welcome customers adding more and more protocols from several Open Source Time Series DB. Under the hood, the Warp10 platform offers the powerful WarpScript query language which was a great help on this process, by just implementing all the query layers as a transpilation step. The best part of it, is now you can have: the same backend, the same data and some Grafana Dashboard written in PromQL when others are using OpenTSDB!
 
+## PromQL configuration
+
+Warp10 metrics names can include some characters not available with Prometheus. Erlenmeyer can filter result metrics meta to replace for example `.` by `_`. 
+To activate it, you will need to set some of the following configuration keys:
+
+```yaml
+# Enable filter on remote read enpoint
+prometheus.remote_read.meta.replace.enabled: true
+# Replace all series meta "." by "_"
+prometheus.remote_read.meta.replace.map: 
+  ".": "_"
+
+# Enable filter on query enpoint only on series classnames
+prometheus.query.classname.replace.enabled: true
+# Replace all series classname "." by "_"
+prometheus.query.classname.replace.map: 
+  ".": "_"
+
+# Enable filter on query enpoint only on series labels
+prometheus.query.labels.replace.enabled: true
+# Replace all series classname "." by "_"
+prometheus.query.labels.replace.map: 
+  ".": "_"
+```
+
 ## Status
 
 Erlenmeyer is used in production.
