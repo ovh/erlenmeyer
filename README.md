@@ -4,7 +4,36 @@ Erlenmeyer is a Go Proxy used to parse multiple Open Source TimeSeries DataBase 
 
 ![Erlenmeyer: Time Series query translator](./assets/logo.png)
 
+
+## Building erlenmeyer
+
 You can test and run locally erlenemeyer following those [building steps](./doc/BUILDING.md).
+
+## Configuration
+
+You can retrieve a `config.sample.yml` file, that can be re-used to configure erlenmeyer. 
+
+```sh
+cp config.sample.yml /Path/to/erlenmeyer.yaml
+```
+
+In this config file, you will retrieve the Warp10 backend endpoint to set `warp_endpoint`. Erlenmeyer will use this endpoint to resolve WarpScript generated queries. 
+
+## Run
+
+Run the dev compiled version:
+
+```sh
+./build/erlenmeyer --config /Path/to/erlenmeyer.yaml
+```
+
+Erlenmeyer supports some flags as `--listen` to specify erlenmeyer listen address and `--config` to specify the config file to use. 
+
+More information about the supported flags are provided by executing: 
+
+```sh
+./build/erlenmeyer -h
+```
 
 ## Supported protocols
 

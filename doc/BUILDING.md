@@ -44,6 +44,8 @@ And finally build the dev version
 make dev
 ```
 
+A `build` or `release` build targets are also available.
+
 If you get any issue during compilation reset you go.mod file from Github:
 
 ```sh
@@ -58,7 +60,7 @@ To compile erlenmeyer release simply run:
 make release
 ```
 
-## Run
+## Run
 
 Run the dev compiled version:
 
