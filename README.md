@@ -109,6 +109,29 @@ Erlenmeyer exposes metrics about his usage:
 | erlenmeyer_promql_request          | function                | counter | Number of requests handled            |
 | erlenmeyer_promql_request          | function                | counter | Number of requests handled            |
 
+You can enable a basic auth for the `/metrics` endpoint by adding the following keys in the config file:
+
+```yaml
+metrics.basicauth.enabled: true
+metrics.basicauth.user: test
+metrics.basicauth.password: $2b$12$hNf2lSsxfm0.i4a.1kVpSOVyBCfIB51VRjgBUyv6kdnyTlgWj81Ay 
+```
+
+The metrics basic auth password needs to be hashed. To do it you can follow the same step as in [prometheus basic auth doc](https://prometheus.io/docs/guides/basic-auth/): 
+
+Create your own local `gen-pass.py` pyhton file: 
+
+```python
+import getpass
+import bcrypt
+
+password = getpass.getpass("password: ")
+hashed_password = bcrypt.hashpw(password.encode("utf-8"), bcrypt.gensalt())
+print(hashed_password.decode())
+```
+
+Save it and run it, this should prompt you the hashed password to use for the configuration file.
+
 ## Licence
 
 Erlenmeyer is released under a [3-BSD clause license](./LICENSE).
