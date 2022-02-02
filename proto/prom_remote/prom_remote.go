@@ -181,7 +181,6 @@ func gtsToPromTS(gts core.GeoTimeSeries) *prompb.TimeSeries {
 			outputToReplace := viper.GetStringMapString("prometheus.remote_read.meta.replace.map")
 			for replaceKey, replaceValue := range outputToReplace {
 				labelKey = strings.Replace(labelKey, replaceKey, replaceValue, -1)
-				labelValue = strings.Replace(labelValue, replaceKey, replaceValue, -1)
 			}
 		}
 		ts.Labels = append(ts.Labels, &prompb.Label{

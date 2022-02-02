@@ -53,7 +53,6 @@ func warpMetricstoPrometheus(gts core.GeoTimeSeries) prometheusResultResponse {
 			outputToReplace := viper.GetStringMapString("prometheus.query.labels.replace.map")
 			for replaceKey, replaceValue := range outputToReplace {
 				labelKey = strings.Replace(labelKey, replaceKey, replaceValue, -1)
-				labelValue = strings.Replace(labelValue, replaceKey, replaceValue, -1)
 			}
 			gtsLabels[labelKey] = labelValue
 		}
